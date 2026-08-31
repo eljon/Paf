@@ -661,20 +661,27 @@
     }
     const recs = loadRecords();
     const now = new Date().toISOString();
-    if (state.editingId) {
-      const idx = recs.findIndex(r => r.id === state.editingId);
-      if (idx >= 0) {
-        recs[idx] = { ...recs[idx], ...payload, updatedAt: now };
-      } else {
-        recs.unshift({ id: state.editingId, ...payload, createdAt: now, updatedAt: now });
-      }
+    let record;
+    const existing = state.editingId && recs.find(r => r.id === state.editingId);
+    if (existing) {
+      record = { ...existing, ...payload, updatedAt: now };
     } else {
-      const id = 'rec_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      recs.unshift({ id, ...payload, createdAt: now, updatedAt: now });
+      const id = state.editingId || 'rec_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      record = { id, ...payload, createdAt: now, updatedAt: now };
       state.editingId = id;
     }
-    if (saveRecords(recs)) {
-      clearDraft();
+    // Update local cache immediately (newest first)
+    const next = [record, ...recs.filter(r => r.id !== record.id)];
+    saveRecords(next);
+    clearDraft();
+
+    // Push to the cloud when configured
+    if (window.Cloud && window.Cloud.enabled) {
+      toast('Saving to cloud…');
+      window.Cloud.save(record)
+        .then(() => toast('Saved to cloud'))
+        .catch(err => { console.error(err); toast('Saved locally — cloud save failed'); });
+    } else {
       toast('Saved to history');
     }
   }
@@ -760,6 +767,9 @@
         if (confirm('Delete this form?')) {
           saveRecords(recs.filter(r => r.id !== id));
           renderHistory($('#historySearch').value);
+          if (window.Cloud && window.Cloud.enabled) {
+            window.Cloud.remove(id).catch(err => console.error('Cloud delete failed', err));
+          }
           toast('Deleted');
         }
         break;
@@ -1226,6 +1236,19 @@
   /* ================================================================
      Init
      ================================================================ */
+  // Subscribe to cloud records and mirror them into the local cache.
+  function setupCloud() {
+    const start = () => {
+      if (!window.Cloud || !window.Cloud.enabled) return;
+      window.Cloud.subscribe(recs => {
+        saveRecords(recs);                             // mirror to local cache
+        if (currentTab === 'history') renderHistory($('#historySearch').value);
+      });
+    };
+    if (window.Cloud && window.Cloud.enabled) start();
+    else window.addEventListener('cloud-ready', start, { once: true });
+  }
+
   function init() {
     bind();
     updateConditionals();
@@ -1233,6 +1256,7 @@
     if (importFromHash()) { formStage = 'details'; }
     else loadDraft();
     switchTab('form');
+    setupCloud();
   }
 
   document.addEventListener('DOMContentLoaded', init);
