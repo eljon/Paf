@@ -166,6 +166,27 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 .refrow{display:flex;gap:8px;}
 .refrow input{flex:1;}
 
+/* ---------- Inline calendar (activity date) ---------- */
+.calendar{background:var(--fill);border-radius:var(--radius-ctrl);padding:10px 10px 12px;}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.cal-title{font-size:16px;font-weight:600;letter-spacing:-.01em;}
+.cal-nav{
+  width:36px;height:36px;border:0;background:transparent;color:var(--blue);
+  font-size:24px;line-height:1;border-radius:10px;display:flex;align-items:center;justify-content:center;
+}
+.cal-nav:active{background:var(--fill-strong);}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.cal-wd{text-align:center;font-size:12px;font-weight:600;color:var(--label-2);padding:4px 0 6px;}
+.cal-day{
+  aspect-ratio:1;border:0;background:transparent;color:var(--label);
+  font-size:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  transition:background .1s;
+}
+.cal-day.is-empty{visibility:hidden;}
+.cal-day.is-today{color:var(--blue);font-weight:700;}
+.cal-day.is-selected{background:var(--blue)!important;color:#fff;font-weight:600;}
+.cal-day:active{background:var(--fill-strong);}
+
 /* ================================================================
    WIZARD — auto-advancing questions
    ================================================================ */

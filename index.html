@@ -69,17 +69,16 @@
           <div id="requestContent">
             <section class="card">
               <h2 class="card__title">Details</h2>
-              <div class="grid2">
-                <div class="field">
-                  <label for="activityDate">Activity date</label>
-                  <input id="activityDate" name="activityDate" type="date" />
-                </div>
-                <div class="field">
-                  <label for="amount">Amount of request</label>
-                  <div class="money">
-                    <span>$</span>
-                    <input id="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" />
-                  </div>
+              <div class="field">
+                <label>Activity date</label>
+                <input type="hidden" id="activityDate" name="activityDate" />
+                <div class="calendar" id="activityCal"></div>
+              </div>
+              <div class="field">
+                <label for="amount">Amount of request</label>
+                <div class="money">
+                  <span>$</span>
+                  <input id="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" />
                 </div>
               </div>
               <div class="field">

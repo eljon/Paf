@@ -187,19 +187,51 @@
     $('#detailsStep').hidden = false;
     renderWizProgress(wizQuestions().length);
     renderSummary();
+    refreshCalendar();
     applyDetailsUI();
     $('#formActions').hidden = currentTab !== 'form';
     window.scrollTo(0, 0);
   }
 
-  // Pop the calendar open for a fresh (empty) activity date.
-  function autoOpenActivityDate() {
-    const el = form.elements['activityDate'];
-    if (!el || el.value) return;
-    requestAnimationFrame(() => {
-      try { el.focus({ preventScroll: true }); if (el.showPicker) el.showPicker(); } catch {}
-    });
+  /* ---------- Inline calendar (activity date) ---------- */
+  const cal = { y: 0, m: 0 };   // month currently on screen
+  function parseISO(s) {
+    if (!s) return null;
+    const [y, mo, d] = s.split('-').map(Number);
+    return y ? { y, m: mo - 1, d } : null;
   }
+  function isoOf(y, m, d) {
+    return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }
+  function syncCalToValue() {
+    const p = parseISO(form.elements['activityDate'] ? form.elements['activityDate'].value : '');
+    const now = new Date();
+    cal.y = p ? p.y : now.getFullYear();
+    cal.m = p ? p.m : now.getMonth();
+  }
+  function renderCalendar() {
+    const mount = $('#activityCal');
+    if (!mount) return;
+    const sel = parseISO(form.elements['activityDate'].value);
+    const today = new Date();
+    const startDow = new Date(cal.y, cal.m, 1).getDay();
+    const daysIn = new Date(cal.y, cal.m + 1, 0).getDate();
+    const title = new Date(cal.y, cal.m, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    let h = `<div class="cal-head">
+      <button type="button" class="cal-nav" data-cal="prev" aria-label="Previous month">‹</button>
+      <span class="cal-title">${title}</span>
+      <button type="button" class="cal-nav" data-cal="next" aria-label="Next month">›</button>
+    </div><div class="cal-grid">`;
+    ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(w => h += `<div class="cal-wd">${w}</div>`);
+    for (let i = 0; i < startDow; i++) h += `<button type="button" class="cal-day is-empty" tabindex="-1"></button>`;
+    for (let d = 1; d <= daysIn; d++) {
+      const isToday = today.getFullYear() === cal.y && today.getMonth() === cal.m && today.getDate() === d;
+      const isSel = sel && sel.y === cal.y && sel.m === cal.m && sel.d === d;
+      h += `<button type="button" class="cal-day${isToday ? ' is-today' : ''}${isSel ? ' is-selected' : ''}" data-day="${d}">${d}</button>`;
+    }
+    mount.innerHTML = h + '</div>';
+  }
+  function refreshCalendar() { syncCalToValue(); renderCalendar(); }
 
   // Toggle the approvals section + which action-bar buttons are shown.
   function applyDetailsUI() {
@@ -920,12 +952,7 @@
         // auto-advance to the next question (or the details step)
         if (formStage === 'wizard') {
           clearTimeout(advanceTimer);
-          advanceTimer = setTimeout(() => {
-            const wasWizard = formStage === 'wizard';
-            resumeStage();
-            // Landing on details from the last question → pop the calendar open.
-            if (wasWizard && formStage === 'details') autoOpenActivityDate();
-          }, 260);
+          advanceTimer = setTimeout(resumeStage, 260);
         }
       }
       saveDraft();
@@ -955,9 +982,27 @@
       if (m._finish) m._finish(null);
     }));
 
-    // Date fields: open the calendar picker on tap
+    // Other date fields: open the native picker on tap
     $$('input[type="date"]').forEach(el => {
       el.addEventListener('click', () => { try { el.showPicker && el.showPicker(); } catch {} });
+    });
+
+    // Inline activity-date calendar
+    refreshCalendar();
+    $('#activityCal').addEventListener('click', (e) => {
+      const nav = e.target.closest('[data-cal]');
+      if (nav) {
+        if (nav.dataset.cal === 'prev') { if (--cal.m < 0) { cal.m = 11; cal.y--; } }
+        else { if (++cal.m > 11) { cal.m = 0; cal.y++; } }
+        renderCalendar();
+        return;
+      }
+      const day = e.target.closest('.cal-day[data-day]');
+      if (day) {
+        form.elements['activityDate'].value = isoOf(cal.y, cal.m, +day.dataset.day);
+        renderCalendar();
+        saveDraft();
+      }
     });
 
     // signature pads
