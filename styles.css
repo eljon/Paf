@@ -107,9 +107,11 @@ input,textarea,select{font-family:inherit;}
 
 /* ---------- Views ---------- */
 .view{
-  padding:16px 16px calc(var(--actionbar-h) + var(--tabbar-h) + var(--safe-b) + 16px);
+  padding:16px 16px 8px;
 }
-.view--preview{padding:0 0 calc(var(--actionbar-h) + var(--safe-b) + 12px);background:var(--bg);}
+/* History has no in-flow action bar, so it clears the fixed tab bar itself */
+.view--history{padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 20px);}
+.view--preview{padding:0 0 8px;background:var(--bg);}
 
 /* ---------- Cards (inset grouped) ---------- */
 .card{
@@ -322,18 +324,13 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 .tab.is-active{color:var(--blue);}
 .tab.is-active .tab__ico{filter:none;opacity:1;}
 
-/* ---------- Action bar ---------- */
+/* ---------- Action bar (scrolls with content) ---------- */
 .actionbar{
-  position:fixed;left:0;right:0;bottom:calc(var(--tabbar-h) + var(--safe-b));z-index:26;
-  max-width:600px;margin:0 auto;
-  height:var(--actionbar-h);
-  background:var(--nav-bg);
-  -webkit-backdrop-filter:saturate(180%) blur(20px);
-  backdrop-filter:saturate(180%) blur(20px);
-  border-top:.5px solid var(--separator);
-  display:flex;gap:10px;align-items:center;padding:0 16px;
+  display:flex;gap:10px;align-items:center;
+  padding:8px 16px calc(var(--tabbar-h) + var(--safe-b) + 20px);
 }
-#previewActions{bottom:0;height:calc(var(--actionbar-h) + var(--safe-b));padding-bottom:var(--safe-b);}
+/* During preview the tab bar is hidden, so only clear the safe area */
+#previewActions{padding-bottom:calc(var(--safe-b) + 20px);}
 
 .btn{
   border:0;border-radius:var(--radius-ctrl);padding:13px 16px;font-size:17px;font-weight:600;
@@ -396,7 +393,7 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 /* ---------- Toast ---------- */
 .toast{
   position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(var(--tabbar-h) + var(--actionbar-h) + var(--safe-b) + 18px);
+  bottom:calc(var(--tabbar-h) + var(--safe-b) + 18px);
   z-index:80;background:rgba(30,30,32,.92);color:#fff;padding:11px 20px;border-radius:999px;
   font-size:15px;font-weight:500;box-shadow:0 8px 30px rgba(0,0,0,.3);
   -webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);
