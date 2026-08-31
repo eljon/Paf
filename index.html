@@ -97,6 +97,18 @@
               </div>
             </section>
 
+            <section class="card">
+              <h2 class="card__title">Requestor</h2>
+              <div class="field">
+                <label for="requestorName">Organization leader / Requestor name</label>
+                <input id="requestorName" name="requestorName" type="text" autocomplete="off" />
+                <div class="sigrow">
+                  <div class="sigpad" data-sig="requestor"></div>
+                  <input class="sigdate" name="requestorDate" type="date" aria-label="Requestor date" />
+                </div>
+              </div>
+            </section>
+
             <section class="card card--conditional" id="fastOfferingCard" hidden>
               <h2 class="card__title">Fast offering expenditure</h2>
               <p class="card__hint">Attach Bishop's Guide to Self-Reliance Plan (p.1) and Fast Offering Assistance Request form.</p>
@@ -130,18 +142,6 @@
 
           <!-- ---- APPROVE panel ---- -->
           <div class="subpanel" data-panel="approve" role="tabpanel" hidden>
-            <section class="card">
-              <h2 class="card__title">Requestor</h2>
-              <div class="field">
-                <label for="requestorName">Organization leader / Requestor name</label>
-                <input id="requestorName" name="requestorName" type="text" autocomplete="off" />
-                <div class="sigrow">
-                  <div class="sigpad" data-sig="requestor"></div>
-                  <input class="sigdate" name="requestorDate" type="date" aria-label="Requestor date" />
-                </div>
-              </div>
-            </section>
-
             <section class="card">
               <h2 class="card__title">Approvals <span class="muted">(both required)</span></h2>
               <div class="field">
@@ -245,6 +245,7 @@
 
     <!-- ============ FORM ACTION BAR ============ -->
     <div class="actionbar" id="formActions">
+      <button class="btn btn--accent" id="btnSubmitRequest" type="button" hidden>Submit ›</button>
       <button class="btn btn--ghost" id="btnClear" type="button">Clear</button>
       <button class="btn btn--primary" id="btnSave" type="button">Save</button>
       <button class="btn btn--accent" id="btnPreview" type="button">Preview</button>

@@ -20,6 +20,17 @@
     caBishop:   'Bishop / President',
   };
 
+  /* Signature key -> date field it should auto-fill when signed */
+  const SIG_DATE = {
+    requestor:  'requestorDate',
+    approver1:  'approver1Date',
+    approver2:  'approver2Date',
+    reimburse:  'reimburseDate',
+    caReceive:  'caReceiveDate',
+    caReturn:   'caReturnDate',
+    caBishop:   'caBishopDate',
+  };
+
   /* ---------- App state ---------- */
   const state = {
     signatures: {},   // key -> dataURL
@@ -172,6 +183,12 @@
     subTab = which;
     $$('.subtab').forEach(t => t.classList.toggle('is-active', t.dataset.sub === which));
     $$('.subpanel').forEach(p => { p.hidden = p.dataset.panel !== which; });
+    // Request tab: a single Submit button. Approval tab: Clear / Save / Preview.
+    const req = which === 'request';
+    $('#btnSubmitRequest').hidden = !req;
+    $('#btnClear').hidden = req;
+    $('#btnSave').hidden = req;
+    $('#btnPreview').hidden = req;
   }
 
   function renderSummary() {
@@ -820,6 +837,16 @@
     });
     $$('.subtab').forEach(t => t.addEventListener('click', () => setSubTab(t.dataset.sub)));
 
+    // Submit (request tab) -> move to approval tab
+    $('#btnSubmitRequest').addEventListener('click', () => { setSubTab('approve'); window.scrollTo(0, 0); });
+
+    // Date fields: open the calendar picker on tap
+    $$('input[type="date"]').forEach(el => {
+      const open = () => { try { el.showPicker && el.showPicker(); } catch {} };
+      el.addEventListener('click', open);
+      el.addEventListener('focus', open);
+    });
+
     // signature pads
     initSigPads();
 
@@ -839,7 +866,14 @@
       const key = state.activeSig;
       if (sigDirty) {
         const data = trimmedSignature();
-        if (data) state.signatures[key] = data;
+        if (data) {
+          state.signatures[key] = data;
+          // auto-fill the matching date field once a signature is added
+          const dn = SIG_DATE[key];
+          if (dn && form.elements[dn] && !form.elements[dn].value) {
+            form.elements[dn].value = todayISO();
+          }
+        }
       }
       renderSignatures();
       saveDraft();
