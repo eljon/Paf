@@ -123,41 +123,6 @@
               </div>
             </section>
 
-            <section class="card">
-              <h2 class="card__title">Receipts &amp; supporting docs</h2>
-              <div class="receipts" id="receiptGrid"></div>
-              <label class="uploader">
-                <input type="file" id="receiptInput" accept="image/*" capture="environment" multiple hidden />
-                <span class="uploader__icon">📷</span>
-                <span>Add photo / receipt</span>
-              </label>
-            </section>
-          </div>
-
-          <!-- ---- APPROVALS section (revealed after Submit) ---- -->
-          <div id="approvalsSection" hidden>
-            <!-- hidden storage for approver names / dates (filled via the flows) -->
-            <input type="hidden" id="approver1Name" name="approver1Name" />
-            <input type="hidden" id="approver1Date" name="approver1Date" />
-            <input type="hidden" id="approver2Name" name="approver2Name" />
-            <input type="hidden" id="approver2Date" name="approver2Date" />
-
-            <section class="card">
-              <h2 class="card__title">Approvals <span class="muted">(both required)</span></h2>
-              <div class="approvers">
-                <button type="button" class="approver-btn" id="btnApprover1">
-                  <span class="approver-btn__role">1st approver</span>
-                  <span class="approver-btn__name" id="ap1Name">Bishop</span>
-                  <span class="approver-btn__status" id="ap1Status">Tap to sign</span>
-                </button>
-                <button type="button" class="approver-btn" id="btnApprover2">
-                  <span class="approver-btn__role">2nd approver</span>
-                  <span class="approver-btn__name" id="ap2Name">Choose approver</span>
-                  <span class="approver-btn__status" id="ap2Status">Tap to sign</span>
-                </button>
-              </div>
-            </section>
-
             <section class="card card--conditional" id="reimbursementCard" hidden>
               <h2 class="card__title">For reimbursement only</h2>
               <div class="field">
@@ -204,6 +169,41 @@
                   <span>= $</span>
                   <input name="caExcess" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Excess returned" readonly />
                 </div>
+              </div>
+            </section>
+
+            <section class="card">
+              <h2 class="card__title">Receipts &amp; supporting docs</h2>
+              <div class="receipts" id="receiptGrid"></div>
+              <label class="uploader">
+                <input type="file" id="receiptInput" accept="image/*" capture="environment" multiple hidden />
+                <span class="uploader__icon">📷</span>
+                <span>Add photo / receipt</span>
+              </label>
+            </section>
+          </div>
+
+          <!-- ---- APPROVALS section (revealed after Submit) ---- -->
+          <div id="approvalsSection" hidden>
+            <!-- hidden storage for approver names / dates (filled via the flows) -->
+            <input type="hidden" id="approver1Name" name="approver1Name" />
+            <input type="hidden" id="approver1Date" name="approver1Date" />
+            <input type="hidden" id="approver2Name" name="approver2Name" />
+            <input type="hidden" id="approver2Date" name="approver2Date" />
+
+            <section class="card">
+              <h2 class="card__title">Approvals <span class="muted">(both required)</span></h2>
+              <div class="approvers">
+                <button type="button" class="approver-btn" id="btnApprover1">
+                  <span class="approver-btn__role">1st approver</span>
+                  <span class="approver-btn__name" id="ap1Name">Bishop</span>
+                  <span class="approver-btn__status" id="ap1Status">Tap to sign</span>
+                </button>
+                <button type="button" class="approver-btn" id="btnApprover2">
+                  <span class="approver-btn__role">2nd approver</span>
+                  <span class="approver-btn__name" id="ap2Name">Choose approver</span>
+                  <span class="approver-btn__status" id="ap2Status">Tap to sign</span>
+                </button>
               </div>
             </section>
           </div>
