@@ -186,6 +186,15 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 .cal-day.is-today{color:var(--blue);font-weight:700;}
 .cal-day.is-selected{background:var(--blue)!important;color:#fff;font-weight:600;}
 .cal-day:active{background:var(--fill-strong);}
+/* collapsed (a date is chosen) */
+.calendar.is-collapsed{background:transparent;padding:0;}
+.cal-selected{
+  display:flex;align-items:center;justify-content:space-between;width:100%;
+  padding:14px;border:0;border-radius:var(--radius-sm);background:var(--fill);
+}
+.cal-selected:active{background:var(--fill-strong);}
+.cal-selected__date{font-size:17px;font-weight:600;color:var(--label);}
+.cal-selected__edit{font-size:15px;font-weight:500;color:var(--blue);}
 
 /* ================================================================
    WIZARD — auto-advancing questions

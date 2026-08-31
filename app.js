@@ -195,6 +195,7 @@
 
   /* ---------- Inline calendar (activity date) ---------- */
   const cal = { y: 0, m: 0 };   // month currently on screen
+  let calOpen = true;           // grid shown vs. collapsed date
   function parseISO(s) {
     if (!s) return null;
     const [y, mo, d] = s.split('-').map(Number);
@@ -203,16 +204,34 @@
   function isoOf(y, m, d) {
     return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   }
+  function fmtLongDate(iso) {
+    const p = parseISO(iso);
+    if (!p) return '';
+    return new Date(p.y, p.m, p.d).toLocaleDateString(undefined,
+      { weekday: 'short', month: 'long', day: 'numeric', year: 'numeric' });
+  }
   function syncCalToValue() {
     const p = parseISO(form.elements['activityDate'] ? form.elements['activityDate'].value : '');
     const now = new Date();
     cal.y = p ? p.y : now.getFullYear();
     cal.m = p ? p.m : now.getMonth();
   }
-  function renderCalendar() {
+  function renderActivity() {
     const mount = $('#activityCal');
     if (!mount) return;
-    const sel = parseISO(form.elements['activityDate'].value);
+    const val = form.elements['activityDate'].value;
+    // Collapsed: a date is chosen and the grid isn't open → show a compact field.
+    if (val && !calOpen) {
+      mount.classList.add('is-collapsed');
+      mount.innerHTML =
+        `<button type="button" class="cal-selected" data-cal="edit">
+          <span class="cal-selected__date">${fmtLongDate(val)}</span>
+          <span class="cal-selected__edit">Change</span>
+        </button>`;
+      return;
+    }
+    mount.classList.remove('is-collapsed');
+    const sel = parseISO(val);
     const today = new Date();
     const startDow = new Date(cal.y, cal.m, 1).getDay();
     const daysIn = new Date(cal.y, cal.m + 1, 0).getDate();
@@ -231,7 +250,12 @@
     }
     mount.innerHTML = h + '</div>';
   }
-  function refreshCalendar() { syncCalToValue(); renderCalendar(); }
+  // Show collapsed if a date exists, otherwise the open grid.
+  function refreshCalendar() {
+    syncCalToValue();
+    calOpen = !(form.elements['activityDate'] && form.elements['activityDate'].value);
+    renderActivity();
+  }
 
   // Toggle the approvals section + which action-bar buttons are shown.
   function applyDetailsUI() {
@@ -991,16 +1015,23 @@
     refreshCalendar();
     $('#activityCal').addEventListener('click', (e) => {
       const nav = e.target.closest('[data-cal]');
-      if (nav) {
+      if (nav && nav.dataset.cal === 'edit') {           // reopen from collapsed
+        calOpen = true;
+        syncCalToValue();
+        renderActivity();
+        return;
+      }
+      if (nav) {                                          // month navigation
         if (nav.dataset.cal === 'prev') { if (--cal.m < 0) { cal.m = 11; cal.y--; } }
         else { if (++cal.m > 11) { cal.m = 0; cal.y++; } }
-        renderCalendar();
+        renderActivity();
         return;
       }
       const day = e.target.closest('.cal-day[data-day]');
-      if (day) {
+      if (day) {                                          // pick a day → collapse
         form.elements['activityDate'].value = isoOf(cal.y, cal.m, +day.dataset.day);
-        renderCalendar();
+        calOpen = false;
+        renderActivity();
         saveDraft();
       }
     });
