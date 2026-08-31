@@ -35,21 +35,21 @@ python3 -m http.server 8080
 # then visit http://localhost:8080
 ```
 
-## Publishing to GitHub Pages
+## Publishing to GitHub Pages (deploy from a branch)
 
-A GitHub Actions workflow (`.github/workflows/pages.yml`) deploys the site
-automatically. To turn it on:
+The site is served straight from the branch — no build step. To turn it on:
 
 1. Push this branch to GitHub.
 2. In the repository, go to **Settings → Pages**.
-3. Under **Build and deployment → Source**, choose **GitHub Actions**.
-4. The workflow runs on push to `main`, `master`, or the
-   `claude/mobile-payment-approval-app-*` branch. When it finishes, the live
-   URL appears in the workflow summary and on the Pages settings screen
-   (typically `https://<user>.github.io/Paf/`).
+3. Under **Build and deployment → Source**, choose **Deploy from a branch**.
+4. Set **Branch** to `claude/mobile-payment-approval-app-l3yucw` (or whichever
+   branch holds this code) and the folder to **`/ (root)`**, then **Save**.
+5. Wait a minute for the first build. The live URL appears at the top of the
+   Pages settings screen, typically `https://<user>.github.io/Paf/`.
 
-You can also trigger it manually from the **Actions** tab
-(*Deploy to GitHub Pages → Run workflow*).
+The `.nojekyll` file tells Pages to serve the files as-is (no Jekyll
+processing). Every push to the selected branch re-publishes the site
+automatically.
 
 ## Privacy
 
