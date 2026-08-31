@@ -410,6 +410,10 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
   background:var(--fill);color:var(--label);border-radius:999px;
   font-size:12px;font-weight:700;padding:1px 9px;letter-spacing:0;
 }
+.queue-total{
+  margin-left:auto;color:var(--accent-d);font-weight:700;font-size:13px;
+  text-transform:none;letter-spacing:0;
+}
 .queue-empty{
   padding:16px;text-align:center;color:var(--label-3);font-size:14px;
   background:var(--card);border-radius:var(--radius-card);box-shadow:var(--shadow);

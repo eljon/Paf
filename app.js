@@ -819,7 +819,12 @@
       const items = recs.filter(r => (r.status || 'withdrawal') === st);
       const sec = document.createElement('div');
       sec.className = 'queue-group';
-      sec.innerHTML = `<div class="queue-head">${STATUS_LABEL[st]} <span class="queue-count">${items.length}</span></div>`;
+      let totalHtml = '';
+      if (st === 'withdrawal' && items.length) {
+        const total = items.reduce((sum, r) => sum + (parseFloat(r.fields && r.fields.amount) || 0), 0);
+        totalHtml = `<span class="queue-total">₱${total.toLocaleString(undefined, { minimumFractionDigits: 2 })} to withdraw</span>`;
+      }
+      sec.innerHTML = `<div class="queue-head">${STATUS_LABEL[st]} <span class="queue-count">${items.length}</span>${totalHtml}</div>`;
       const list = document.createElement('div');
       list.className = 'history-list';
       if (!items.length) list.innerHTML = '<div class="queue-empty">None</div>';
