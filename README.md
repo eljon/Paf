@@ -39,9 +39,9 @@ offline, syncing when it can.
 
 **1. Create the project**
 - Go to <https://console.firebase.google.com> → **Add project**.
-- **Build → Firestore Database → Create database** (Production mode).
+- **Build → Firestore Database → Create database**.
 - **Build → Storage → Get started**.
-- **Build → Authentication → Get started → Sign-in method → Anonymous → Enable.**
+- No authentication is used — access is controlled by the rules below.
 
 **2. Get the web config**
 - **Project settings (gear) → General → Your apps →** add a **Web app** (`</>`).
@@ -58,8 +58,8 @@ offline, syncing when it can.
   };
   ```
 
-**3. Security rules** — everyone signed in (anonymously) shares one
-`transactions` collection, so any device sees the same data. Paste these:
+**3. Security rules (open — no authentication).** One shared `transactions`
+collection so any device sees the same data. Paste these:
 
 - Firestore (**Firestore → Rules**):
 
@@ -68,7 +68,7 @@ offline, syncing when it can.
   service cloud.firestore {
     match /databases/{database}/documents {
       match /transactions/{id} {
-        allow read, write: if request.auth != null;
+        allow read, write: if true;
       }
     }
   }
@@ -81,23 +81,23 @@ offline, syncing when it can.
   service firebase.storage {
     match /b/{bucket}/o {
       match /receipts/{allPaths=**} {
-        allow read, write: if request.auth != null;
+        allow read, write: if true;
       }
     }
   }
   ```
 
-**4. Allow your domain** — in **Authentication → Settings → Authorized
-domains**, add your GitHub Pages host (e.g. `eljon.github.io`). For PNG export
-of photos stored in the cloud, also set a CORS rule on the Storage bucket
-allowing your domain.
+  ⚠️ These rules are **fully open**: anyone who knows the project's config can
+  read, write, or delete the transactions. That's fine for a private/internal
+  tool while you get going, but before wider use, add authentication and lock
+  the rules down (ask and I'll wire it up). For PNG export of cloud-stored
+  photos, also set a CORS rule on the Storage bucket allowing your domain.
 
-**5. Commit `firebase-config.js` and deploy.** On load you'll see
-`[Cloud] Firebase enabled` in the console, and saves go to the cloud. Note the
-web config is *not a secret* (it only identifies the project); the security
-rules above are what protect the data. Because the collection is shared, treat
-it as a single-unit tool — anyone with the app and access to your Firebase
-project's rules can read/write the transactions.
+**4. Commit `firebase-config.js` and deploy.** On load you'll see
+`[Cloud] Firebase enabled` in the console, and saves go to the cloud. The web
+config is *not a secret* (it only identifies the project) — with open rules,
+the rules are all that stand between the data and the public, so treat the
+project as internal.
 
 ## Running locally
 

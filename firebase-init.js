@@ -3,7 +3,7 @@
    ------------------------------------------------------------
    - Firestore : transaction records (real-time, cross-device)
    - Storage   : receipt photos
-   - Anonymous auth so security rules can require sign-in.
+   - No authentication (open access — protect via project rules).
 
    The Firebase SDK is only fetched when window.FIREBASE_CONFIG is
    filled in. Otherwise the app uses on-device storage and never
@@ -17,21 +17,16 @@ window.Cloud = { enabled: false };
 if (configured) {
   try {
     const base = "https://www.gstatic.com/firebasejs/10.12.5/";
-    const [appMod, authMod, fs, st] = await Promise.all([
+    const [appMod, fs, st] = await Promise.all([
       import(base + "firebase-app.js"),
-      import(base + "firebase-auth.js"),
       import(base + "firebase-firestore.js"),
       import(base + "firebase-storage.js"),
     ]);
 
     const app = appMod.initializeApp(cfg);
-    const auth = authMod.getAuth(app);
     const db = fs.getFirestore(app);
     const storage = st.getStorage(app);
     const col = fs.collection(db, "transactions");
-    const ready = authMod.signInAnonymously(auth).catch(err => {
-      console.error("[Cloud] Anonymous sign-in failed:", err);
-    });
 
     window.Cloud = {
       enabled: true,
@@ -49,7 +44,6 @@ if (configured) {
       // Save/update a record. Receipt photos still held as data: URIs are
       // uploaded to Storage and replaced with their download URLs.
       async save(record) {
-        await ready;
         const receipts = [];
         const list = record.receipts || [];
         for (let i = 0; i < list.length; i++) {
@@ -68,7 +62,6 @@ if (configured) {
       },
 
       async remove(id) {
-        await ready;
         await fs.deleteDoc(fs.doc(col, id));
       },
     };
