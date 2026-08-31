@@ -135,23 +135,26 @@ textarea{resize:vertical;min-height:44px;}
 
 /* ---------- Signature pad ---------- */
 .sigpad{
-  height:74px;border:1px dashed var(--line-2);border-radius:10px;
-  background:#fbfcfe;display:flex;align-items:center;justify-content:center;
-  color:var(--muted);font-size:13px;position:relative;overflow:hidden;
+  height:92px;border:2px dashed var(--accent);border-radius:12px;
+  background:#f2faf5;display:flex;align-items:center;justify-content:center;
+  color:var(--accent-d);font-size:14px;font-weight:700;position:relative;overflow:hidden;
+  cursor:pointer;user-select:none;-webkit-user-select:none;
 }
-.sigpad::after{content:"Tap to sign";}
+.sigpad::after{content:"✍️  Tap here to sign";letter-spacing:.01em;}
+.sigpad:active{background:#e6f4ec;}
 .sigpad.has-sig{border-style:solid;border-color:var(--accent);background:#fff;}
 .sigpad.has-sig::after{content:"";}
-.sigpad img{max-height:100%;max-width:100%;object-fit:contain;}
+.sigpad img{max-height:88%;max-width:92%;object-fit:contain;}
 .sigpad__clear{
-  position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;
-  border:0;background:rgba(0,0,0,.06);color:#555;font-size:14px;line-height:1;
-  display:none;align-items:center;justify-content:center;
+  position:absolute;top:5px;right:5px;width:26px;height:26px;border-radius:50%;
+  border:0;background:rgba(0,0,0,.08);color:#444;font-size:14px;line-height:1;
+  display:none;align-items:center;justify-content:center;z-index:2;
 }
 .sigpad.has-sig .sigpad__clear{display:flex;}
+.sig-caption{display:block;font-size:11.5px;color:var(--muted);margin:6px 2px 0;}
 .sigrow{display:flex;gap:10px;align-items:stretch;margin-top:8px;}
-.sigrow .sigpad{flex:1;}
-.sigdate{width:130px;flex:none;}
+.sigrow .sigpad{flex:1 1 auto;min-width:0;}
+.sigrow .sigdate{flex:0 0 120px;width:120px;align-self:stretch;}
 
 /* ---------- Receipts ---------- */
 .receipts{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
