@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1f3a5f" />
+  <meta name="description" content="Fill out, sign, and export the Church Payment Approval Form (PAF) from your phone." />
+  <title>Payment Approval Form</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>" />
+</head>
+<body>
+  <div id="app">
+    <!-- ============ TOP BAR ============ -->
+    <header class="topbar">
+      <button class="topbar__back" id="btnBack" aria-label="Back" hidden>‹</button>
+      <div class="topbar__title" id="topbarTitle">Payment Approval</div>
+      <button class="topbar__action" id="btnNew" aria-label="New form">＋</button>
+    </header>
+
+    <!-- ============ FORM VIEW ============ -->
+    <main class="view view--form" id="viewForm">
+      <form id="pafForm" novalidate>
+
+        <!-- Transaction type -->
+        <section class="card">
+          <h2 class="card__title">Transaction type</h2>
+          <div class="segmented" role="group" aria-label="Transaction type">
+            <label class="seg"><input type="radio" name="txnType" value="Swipe" /><span>Swipe</span></label>
+            <label class="seg"><input type="radio" name="txnType" value="Reimbursement" checked /><span>Reimbursement</span></label>
+            <label class="seg"><input type="radio" name="txnType" value="Cash Advance" /><span>Cash Advance</span></label>
+          </div>
+        </section>
+
+        <!-- Basic details -->
+        <section class="card">
+          <h2 class="card__title">Details</h2>
+          <div class="field">
+            <label for="unit">Ward/Branch or Stake/District</label>
+            <input id="unit" name="unit" type="text" autocomplete="off" placeholder="e.g. Riverside Ward" />
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="activityDate">Activity date</label>
+              <input id="activityDate" name="activityDate" type="date" />
+            </div>
+            <div class="field">
+              <label for="amount">Amount of request</label>
+              <div class="money">
+                <span>$</span>
+                <input id="amount" name="amount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" />
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label for="payee">Payee <span class="muted">(requestor / person / entity paid)</span></label>
+            <input id="payee" name="payee" type="text" autocomplete="off" placeholder="Name" />
+          </div>
+          <div class="field">
+            <label>Payment category</label>
+            <div class="segmented segmented--sm" role="group" aria-label="Payment category">
+              <label class="seg"><input type="radio" name="category" value="Budget" checked /><span>Budget</span></label>
+              <label class="seg"><input type="radio" name="category" value="Fast Offering" /><span>Fast Offering</span></label>
+              <label class="seg"><input type="radio" name="category" value="Other" /><span>Other</span></label>
+            </div>
+          </div>
+          <div class="field">
+            <label for="purpose">Payment purpose <span class="muted">(activity name / description)</span></label>
+            <textarea id="purpose" name="purpose" rows="2" placeholder="Detailed description"></textarea>
+          </div>
+        </section>
+
+        <!-- Fast Offering (conditional) -->
+        <section class="card card--conditional" id="fastOfferingCard" hidden>
+          <h2 class="card__title">Fast offering expenditure</h2>
+          <p class="card__hint">Attach Bishop's Guide to Self-Reliance Plan (p.1) and Fast Offering Assistance Request form.</p>
+          <div class="field">
+            <label>Type</label>
+            <div class="chips" role="group" aria-label="Fast offering type">
+              <label class="chip"><input type="radio" name="foType" value="Food" /><span>Food</span></label>
+              <label class="chip"><input type="radio" name="foType" value="Medical" /><span>Medical</span></label>
+              <label class="chip"><input type="radio" name="foType" value="Short-Term Shelter (Housing)" /><span>Housing</span></label>
+              <label class="chip"><input type="radio" name="foType" value="Utilities" /><span>Utilities</span></label>
+              <label class="chip"><input type="radio" name="foType" value="Other" /><span>Other</span></label>
+            </div>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="foRecipient">Name of recipient</label>
+              <input id="foRecipient" name="foRecipient" type="text" autocomplete="off" />
+            </div>
+            <div class="field">
+              <label for="foMRN">MRN</label>
+              <input id="foMRN" name="foMRN" type="text" inputmode="numeric" autocomplete="off" />
+            </div>
+          </div>
+          <div class="field">
+            <label>Signature of member receiving assistance <span class="muted">(verify items before signing)</span></label>
+            <div class="sigpad" data-sig="foMember"></div>
+          </div>
+        </section>
+
+        <!-- Signatures -->
+        <section class="card">
+          <h2 class="card__title">Requestor &amp; approvals</h2>
+
+          <div class="field">
+            <label for="requestorName">Organization leader / Requestor name</label>
+            <input id="requestorName" name="requestorName" type="text" autocomplete="off" />
+            <div class="sigrow">
+              <div class="sigpad" data-sig="requestor"></div>
+              <input class="sigdate" name="requestorDate" type="date" aria-label="Requestor date" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="approver1Name">1st approver <span class="req">required</span></label>
+            <p class="card__hint">Bishop/Branch President or Stake/District President</p>
+            <input id="approver1Name" name="approver1Name" type="text" autocomplete="off" placeholder="Printed name" />
+            <div class="sigrow">
+              <div class="sigpad" data-sig="approver1"></div>
+              <input class="sigdate" name="approver1Date" type="date" aria-label="1st approver date" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="approver2Name">2nd approver <span class="req">required</span></label>
+            <p class="card__hint">Ward/Branch Counselor or Stake/District Counselor</p>
+            <input id="approver2Name" name="approver2Name" type="text" autocomplete="off" placeholder="Printed name" />
+            <div class="sigrow">
+              <div class="sigpad" data-sig="approver2"></div>
+              <input class="sigdate" name="approver2Date" type="date" aria-label="2nd approver date" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Reimbursement (conditional) -->
+        <section class="card card--conditional" id="reimbursementCard" hidden>
+          <h2 class="card__title">For reimbursement only</h2>
+          <div class="field">
+            <label>Signature of person receiving cash reimbursement <span class="muted">(sign only upon receiving cash)</span></label>
+            <div class="sigrow">
+              <div class="sigpad" data-sig="reimburse"></div>
+              <input class="sigdate" name="reimburseDate" type="date" aria-label="Reimbursement date" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Cash advance (conditional) -->
+        <section class="card card--conditional" id="cashAdvanceCard" hidden>
+          <h2 class="card__title">For cash advance only</h2>
+          <p class="card__hint">Full accounting required: official receipts, invoices, and return of excess cash.</p>
+
+          <div class="field">
+            <label>Person receiving cash advance</label>
+            <div class="sigrow">
+              <div class="sigpad" data-sig="caReceive"></div>
+              <input class="sigdate" name="caReceiveDate" type="date" aria-label="Cash received date" />
+            </div>
+            <div class="money money--inline">
+              <span>+ $</span>
+              <input name="caReceived" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount received" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Person returning excess cash</label>
+            <div class="sigrow">
+              <div class="sigpad" data-sig="caReturn"></div>
+              <input class="sigdate" name="caReturnDate" type="date" aria-label="Cash returned date" />
+            </div>
+            <div class="money money--inline">
+              <span>− $</span>
+              <input name="caSpent" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount spent" />
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Bishop/President <span class="muted">(upon receipt of excess cash)</span></label>
+            <div class="sigrow">
+              <div class="sigpad" data-sig="caBishop"></div>
+              <input class="sigdate" name="caBishopDate" type="date" aria-label="Bishop receipt date" />
+            </div>
+            <div class="money money--inline money--total">
+              <span>= $</span>
+              <input name="caExcess" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Excess returned" readonly />
+            </div>
+          </div>
+        </section>
+
+        <!-- Receipts -->
+        <section class="card">
+          <h2 class="card__title">Receipts &amp; supporting docs</h2>
+          <div class="receipts" id="receiptGrid"></div>
+          <label class="uploader">
+            <input type="file" id="receiptInput" accept="image/*" capture="environment" multiple hidden />
+            <span class="uploader__icon">📷</span>
+            <span>Add photo / receipt</span>
+          </label>
+        </section>
+
+        <!-- Clerk -->
+        <section class="card">
+          <h2 class="card__title">Clerk use only</h2>
+          <div class="field">
+            <label for="refNumber">Reference number <span class="muted">(YYYYMMDD-Amount)</span></label>
+            <div class="refrow">
+              <input id="refNumber" name="refNumber" type="text" autocomplete="off" placeholder="20200203-10011" />
+              <button type="button" class="btn btn--ghost btn--sm" id="btnGenRef">Auto</button>
+            </div>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="seq">Seq #</label>
+              <input id="seq" name="seq" type="text" inputmode="numeric" autocomplete="off" placeholder="1" />
+            </div>
+          </div>
+        </section>
+
+        <div class="form-spacer"></div>
+      </form>
+    </main>
+
+    <!-- ============ HISTORY VIEW ============ -->
+    <main class="view view--history" id="viewHistory" hidden>
+      <div class="history-head">
+        <input type="search" id="historySearch" class="history-search" placeholder="Search payee, unit, purpose…" />
+      </div>
+      <div id="historyList" class="history-list"></div>
+      <div class="empty" id="historyEmpty" hidden>
+        <div class="empty__icon">🗂️</div>
+        <p>No saved forms yet.</p>
+        <button class="btn" id="btnEmptyNew">Create your first form</button>
+      </div>
+    </main>
+
+    <!-- ============ PREVIEW / OUTPUT VIEW ============ -->
+    <main class="view view--preview" id="viewPreview" hidden>
+      <div id="previewMount" class="preview-mount"></div>
+    </main>
+
+    <!-- ============ BOTTOM NAV ============ -->
+    <nav class="tabbar" id="tabbar">
+      <button class="tab is-active" data-tab="form"><span class="tab__ico">📝</span><span>Form</span></button>
+      <button class="tab" data-tab="history"><span class="tab__ico">🗂️</span><span>History</span></button>
+    </nav>
+
+    <!-- ============ FORM ACTION BAR ============ -->
+    <div class="actionbar" id="formActions">
+      <button class="btn btn--ghost" id="btnClear" type="button">Clear</button>
+      <button class="btn btn--primary" id="btnSave" type="button">Save</button>
+      <button class="btn btn--accent" id="btnPreview" type="button">Preview</button>
+    </div>
+
+    <!-- ============ PREVIEW ACTION BAR ============ -->
+    <div class="actionbar" id="previewActions" hidden>
+      <button class="btn btn--ghost" id="btnEditFromPreview" type="button">Edit</button>
+      <button class="btn btn--primary" id="btnPrint" type="button">Print / PDF</button>
+      <button class="btn btn--accent" id="btnPng" type="button">PNG</button>
+    </div>
+  </div>
+
+  <!-- Signature modal -->
+  <div class="modal" id="sigModal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__sheet">
+      <div class="modal__head">
+        <strong id="sigModalTitle">Signature</strong>
+        <button class="modal__x" data-close aria-label="Close">✕</button>
+      </div>
+      <canvas id="sigCanvas" class="sig-canvas"></canvas>
+      <div class="modal__foot">
+        <button class="btn btn--ghost" id="sigClear" type="button">Clear</button>
+        <button class="btn btn--primary" id="sigDone" type="button">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
