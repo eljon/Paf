@@ -795,19 +795,23 @@
 
     // --- reimbursement ---
     if (f.txnType === 'Reimbursement') {
-      o += S('reimburse', 45, 694, 340, 42);
+      o += T(48, 706, f.reimburseName, { sm: true, w: 330 });
+      o += S('reimburse', 45, 720, 340, 22);
       o += T(615, 695, fmtDate(f.reimburseDate));
     }
 
     // --- cash advance ---
     if (f.txnType === 'Cash Advance') {
-      o += S('caReceive', 40, 810, 320, 38);
+      o += T(44, 822, f.caReceiveName, { sm: true, w: 300 });
+      o += S('caReceive', 40, 836, 320, 20);
       o += T(470, 806, fmtDate(f.caReceiveDate), { sm: true });
       o += T(1018, 822, money(f.caReceived), { bold: true });
-      o += S('caReturn', 40, 872, 320, 38);
+      o += T(44, 882, f.caReturnName, { sm: true, w: 300 });
+      o += S('caReturn', 40, 896, 320, 20);
       o += T(470, 866, fmtDate(f.caReturnDate), { sm: true });
       o += T(1018, 884, money(f.caSpent), { bold: true });
-      o += S('caBishop', 40, 934, 320, 38);
+      o += T(44, 942, f.caBishopName, { sm: true, w: 300 });
+      o += S('caBishop', 40, 956, 320, 18);
       o += T(470, 926, fmtDate(f.caBishopDate), { sm: true });
       o += T(1018, 946, money(f.caExcess), { bold: true });
     }

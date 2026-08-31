@@ -124,9 +124,12 @@
             </section>
 
             <section class="card card--conditional" id="reimbursementCard" hidden>
-              <h2 class="card__title">For reimbursement only</h2>
               <div class="field">
-                <label>Signature of person receiving cash reimbursement <span class="muted">(sign only upon receiving cash)</span></label>
+                <label for="reimburseName">Name of person receiving cash reimbursement</label>
+                <input id="reimburseName" name="reimburseName" type="text" autocomplete="off" placeholder="Name" />
+              </div>
+              <div class="field">
+                <label>Signature <span class="muted">(sign only upon receiving cash)</span></label>
                 <div class="sigrow">
                   <div class="sigpad" data-sig="reimburse"></div>
                   <input class="sigdate" name="reimburseDate" type="date" aria-label="Reimbursement date" />
@@ -135,10 +138,10 @@
             </section>
 
             <section class="card card--conditional" id="cashAdvanceCard" hidden>
-              <h2 class="card__title">For cash advance only</h2>
               <p class="card__hint">Full accounting required: official receipts, invoices, and return of excess cash.</p>
               <div class="field">
-                <label>Person receiving cash advance</label>
+                <label for="caReceiveName">Person receiving cash advance</label>
+                <input id="caReceiveName" name="caReceiveName" type="text" autocomplete="off" placeholder="Name" />
                 <div class="sigrow">
                   <div class="sigpad" data-sig="caReceive"></div>
                   <input class="sigdate" name="caReceiveDate" type="date" aria-label="Cash received date" />
@@ -149,7 +152,8 @@
                 </div>
               </div>
               <div class="field">
-                <label>Person returning excess cash</label>
+                <label for="caReturnName">Person returning excess cash</label>
+                <input id="caReturnName" name="caReturnName" type="text" autocomplete="off" placeholder="Name" />
                 <div class="sigrow">
                   <div class="sigpad" data-sig="caReturn"></div>
                   <input class="sigdate" name="caReturnDate" type="date" aria-label="Cash returned date" />
@@ -160,7 +164,8 @@
                 </div>
               </div>
               <div class="field">
-                <label>Bishop/President <span class="muted">(upon receipt of excess cash)</span></label>
+                <label for="caBishopName">Bishop/President <span class="muted">(upon receipt of excess cash)</span></label>
+                <input id="caBishopName" name="caBishopName" type="text" autocomplete="off" placeholder="Name" />
                 <div class="sigrow">
                   <div class="sigpad" data-sig="caBishop"></div>
                   <input class="sigdate" name="caBishopDate" type="date" aria-label="Bishop receipt date" />
