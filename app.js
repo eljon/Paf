@@ -163,37 +163,54 @@
     state.activeSig = null;
   }
 
+  let sigW = 0, sigH = 0;
   function setupCanvas() {
     const rect = sigCanvas.getBoundingClientRect();
+    sigW = rect.width; sigH = rect.height;
+    if (!sigW || !sigH) return;
     const dpr = window.devicePixelRatio || 1;
-    sigCanvas.width = rect.width * dpr;
-    sigCanvas.height = rect.height * dpr;
+    sigCanvas.width = Math.round(sigW * dpr);
+    sigCanvas.height = Math.round(sigH * dpr);
     sigCtx = sigCanvas.getContext('2d');
-    sigCtx.scale(dpr, dpr);
-    sigCtx.lineWidth = 2.4;
+    sigCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sigCtx.lineWidth = 2.6;
     sigCtx.lineCap = 'round';
     sigCtx.lineJoin = 'round';
     sigCtx.strokeStyle = '#12233b';
-    sigCtx.clearRect(0, 0, rect.width, rect.height);
+    sigCtx.clearRect(0, 0, sigW, sigH);
     sigDirty = false;
-    // preload existing
     const existing = state.signatures[state.activeSig];
     if (existing) {
       const img = new Image();
-      img.onload = () => sigCtx.drawImage(img, 0, 0, rect.width, rect.height);
+      img.onload = () => {
+        // fit existing signature within the pad, centered
+        const r = Math.min(sigW / img.width, sigH / img.height, 1);
+        const w = img.width * r, h = img.height * r;
+        sigCtx.drawImage(img, (sigW - w) / 2, (sigH - h) / 2, w, h);
+      };
       img.src = existing;
     }
   }
 
   function sigPos(e) {
     const r = sigCanvas.getBoundingClientRect();
-    const p = e.touches ? e.touches[0] : e;
+    const p = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e;
     return { x: p.clientX - r.left, y: p.clientY - r.top };
   }
   function sigStart(e) {
     e.preventDefault();
+    if (!sigCtx) setupCanvas();
     sigDrawing = true;
     sigLast = sigPos(e);
+    // dot for taps
+    sigCtx.beginPath();
+    sigCtx.arc(sigLast.x, sigLast.y, 1.3, 0, Math.PI * 2);
+    sigCtx.fillStyle = '#12233b';
+    sigCtx.fill();
+    sigDirty = true;
+    if (sigCanvas.setPointerCapture && e.pointerId != null) {
+      try { sigCanvas.setPointerCapture(e.pointerId); } catch {}
+    }
   }
   function sigMove(e) {
     if (!sigDrawing) return;
@@ -490,176 +507,130 @@
   /* ================================================================
      Preview / printable PAF replica
      ================================================================ */
-  function chk(on) { return `<span class="paf-box">${on ? '✕' : ''}</span>`; }
-  function sig(key) {
-    const d = state.signatures[key];
-    return d ? `<img src="${d}" alt="signature">` : '';
-  }
   function money(v) { return v ? Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 }) : ''; }
   function fmtDate(v) { return v || ''; }
+
+  /* Overlay coordinate system — base is the form image: 1260 × 1100 px.
+     Positions below are in those pixels; converted to % so the overlay
+     scales to any width (screen, print, PNG). */
+  const BW = 1260, BH = 1100;
+  const px = n => (n / BW * 100);
+  const py = n => (n / BH * 100);
+
+  // Absolutely-positioned text (x,y = top-left in base px)
+  function T(x, y, text, opt = {}) {
+    if (text == null || text === '') return '';
+    const cls = 'pf-t' + (opt.bold ? ' pf-b' : '') + (opt.sm ? ' pf-sm' : '');
+    const w = opt.w ? `max-width:${px(opt.w)}%;` : '';
+    const align = opt.center ? 'text-align:center;transform:translateX(-50%);' : '';
+    return `<span class="${cls}" style="left:${px(x)}%;top:${py(y)}%;${w}${align}">${escapeHtml(text)}</span>`;
+  }
+  // Checkbox ✕ centred on (cx,cy)
+  function K(cx, cy, on) {
+    return on ? `<span class="pf-x" style="left:${px(cx)}%;top:${py(cy)}%">✕</span>` : '';
+  }
+  // Signature image resting on a line: box (x,y,w,h) in base px
+  function S(key, x, y, w, h) {
+    const d = state.signatures[key];
+    if (!d) return '';
+    return `<span class="pf-sig" style="left:${px(x)}%;top:${py(y)}%;width:${px(w)}%;height:${py(h)}%">
+      <img src="${d}" alt="signature"></span>`;
+  }
 
   function buildPreviewHTML(rec) {
     const f = rec.fields;
     const isFO = f.category === 'Fast Offering';
-    const receipts = (rec.receipts || []).map(src => `<img src="${src}" alt="receipt">`).join('');
+    let o = '';
+
+    // --- transaction type checkboxes ---
+    o += K(259, 188, f.txnType === 'Swipe');
+    o += K(487, 188, f.txnType === 'Reimbursement');
+    o += K(779, 188, f.txnType === 'Cash Advance');
+
+    // --- row 1 ---
+    o += T(40, 230, f.unit || 'Kalayaan Ward', { bold: true });
+    o += T(610, 238, fmtDate(f.activityDate));
+    o += T(905, 236, f.amount ? '$' + money(f.amount) : '', { bold: true });
+
+    // --- payee + category ---
+    o += T(40, 296, f.payee, { bold: true, w: 540 });
+    o += K(631, 304, f.category === 'Budget');
+    o += K(731, 304, f.category === 'Fast Offering');
+    o += K(866, 304, f.category === 'Other');
+
+    // --- purpose ---
+    o += T(40, 356, f.purpose, { w: 545, sm: true });
+
+    // --- fast offering ---
+    if (isFO) {
+      o += K(620, 398, f.foType === 'Food');
+      o += K(711, 398, f.foType === 'Medical');
+      o += K(799, 398, f.foType === 'Short-Term Shelter (Housing)');
+      o += K(1018, 398, f.foType === 'Utilities');
+      o += K(1101, 398, f.foType === 'Other');
+      o += T(730, 421, f.foRecipient, { w: 300 });
+      o += T(1050, 421, f.foMRN, { w: 170 });
+      o += S('foMember', 725, 452, 360, 40);
+    }
+
+    // --- requestor ---
+    o += T(45, 516, f.requestorName, { sm: true, w: 200 });
+    o += S('requestor', 250, 508, 170, 44);
+    o += T(485, 510, fmtDate(f.requestorDate));
+
+    // --- approvers ---
+    o += T(45, 608, f.approver1Name, { sm: true, w: 200 });
+    o += S('approver1', 250, 600, 170, 44);
+    o += T(485, 624, fmtDate(f.approver1Date));
+    o += T(615, 608, f.approver2Name, { sm: true, w: 200 });
+    o += S('approver2', 820, 600, 170, 44);
+    o += T(1050, 624, fmtDate(f.approver2Date));
+
+    // --- reimbursement ---
+    if (f.txnType === 'Reimbursement') {
+      o += S('reimburse', 45, 694, 340, 42);
+      o += T(615, 695, fmtDate(f.reimburseDate));
+    }
+
+    // --- cash advance ---
+    if (f.txnType === 'Cash Advance') {
+      o += S('caReceive', 40, 810, 320, 38);
+      o += T(470, 806, fmtDate(f.caReceiveDate), { sm: true });
+      o += T(1018, 822, money(f.caReceived), { bold: true });
+      o += S('caReturn', 40, 872, 320, 38);
+      o += T(470, 866, fmtDate(f.caReturnDate), { sm: true });
+      o += T(1018, 884, money(f.caSpent), { bold: true });
+      o += S('caBishop', 40, 934, 320, 38);
+      o += T(470, 926, fmtDate(f.caBishopDate), { sm: true });
+      o += T(1018, 946, money(f.caExcess), { bold: true });
+    }
+
+    // --- clerk reference (YYYYMMDD split into boxes) + amount + seq ---
+    const ref = (f.refNumber || '').trim();
+    const dash = ref.indexOf('-');
+    const datePart = (dash >= 0 ? ref.slice(0, dash) : ref).replace(/\D/g, '');
+    const amtPart = dash >= 0 ? ref.slice(dash + 1).trim() : '';
+    const boxX = [617, 640, 663, 686, 742, 765, 828, 852];
+    if (datePart.length >= 8) {
+      for (let i = 0; i < 8; i++) o += T(boxX[i], 1042, datePart[i], { bold: true, center: true });
+    } else {
+      o += T(605, 1046, ref);
+    }
+    o += T(900, 1044, amtPart, { sm: true });
+    o += T(1072, 1044, f.seq, { bold: true });
+
+    const receipts = (rec.receipts || []).map((src, i) =>
+      `<figure class="pf-receipt"><img src="${src}" alt="receipt ${i + 1}"><figcaption>Receipt ${i + 1}</figcaption></figure>`
+    ).join('');
 
     return `
-    <div class="paf" id="pafSheet">
-      <div class="paf-head">
-        <div class="paf-logo">THE CHURCH OF<b>JESUS CHRIST</b>OF LATTER-DAY SAINTS</div>
-        <div class="paf-title">PAYMENT APPROVAL FORM</div>
-      </div>
-
-      <div class="paf-types">
-        <span class="paf-check">${chk(f.txnType === 'Swipe')} Swipe</span>
-        <span class="paf-check">${chk(f.txnType === 'Reimbursement')} Reimbursement</span>
-        <span class="paf-check">${chk(f.txnType === 'Cash Advance')} Cash Advance</span>
-      </div>
-
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Ward/Branch or Stake/District</span>
-          <div class="paf-val">${escapeHtml(f.unit)}</div>
-        </div>
-        <div class="paf-cell">
-          <span class="paf-lbl">Activity Date</span>
-          <div class="paf-val">${escapeHtml(fmtDate(f.activityDate))}</div>
-        </div>
-        <div class="paf-cell">
-          <span class="paf-lbl">Amount of payment request</span>
-          <div class="paf-val">${f.amount ? '$' + money(f.amount) : ''}</div>
+      <div class="paf-sheet" id="pafSheet">
+        <div class="paf-fill">
+          <img class="paf-bg" src="assets/paf-form.jpg" alt="Payment Approval Form" crossorigin="anonymous">
+          ${o}
         </div>
       </div>
-
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Payee: Name of requestor / person / entity</span>
-          <div class="paf-val">${escapeHtml(f.payee)}</div>
-        </div>
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Payment Category</span>
-          <div class="paf-cat">
-            <span class="paf-check">${chk(f.category === 'Budget')} Budget</span>
-            <span class="paf-check">${chk(f.category === 'Fast Offering')} Fast Offering</span>
-            <span class="paf-check">${chk(f.category === 'Other')} Other</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Payment purpose (Name of activity or description)</span>
-          <div class="paf-val" style="min-height:34px">${escapeHtml(f.purpose)}</div>
-        </div>
-        <div class="paf-cell paf-fo" style="flex:2">
-          <span class="paf-lbl" style="font-weight:700;text-align:center;display:block">Fast offering expenditures only</span>
-          ${isFO ? `
-            <div class="paf-fo-types">
-              <span class="paf-check">${chk(f.foType === 'Food')} Food</span>
-              <span class="paf-check">${chk(f.foType === 'Medical')} Medical</span>
-              <span class="paf-check">${chk(f.foType === 'Short-Term Shelter (Housing)')} Housing</span>
-              <span class="paf-check">${chk(f.foType === 'Utilities')} Utilities</span>
-              <span class="paf-check">${chk(f.foType === 'Other')} Other</span>
-            </div>
-            <div style="display:flex;gap:8px">
-              <div style="flex:1"><span class="paf-lbl">Name of Recipient</span><div class="paf-val">${escapeHtml(f.foRecipient)}</div></div>
-              <div style="flex:1"><span class="paf-lbl">MRN</span><div class="paf-val">${escapeHtml(f.foMRN)}</div></div>
-            </div>
-            <div class="paf-sig">${sig('foMember')}</div>
-            <span class="sub">Signature of member receiving Fast Offering assistance</span>
-          ` : `<div style="color:#888;text-align:center;padding:14px 0">— Not applicable —</div>`}
-        </div>
-      </div>
-
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Name &amp; signature of organization leader / Requestor</span>
-          <div class="paf-val">${escapeHtml(f.requestorName)}</div>
-          <div class="paf-sig">${sig('requestor')}</div>
-          <span class="sub">Date: ${escapeHtml(fmtDate(f.requestorDate))}</span>
-        </div>
-      </div>
-
-      <div class="paf-section">APPROVALS (BOTH REQUIRED)</div>
-      <div class="paf-approvers">
-        <div class="paf-cell">
-          <span class="paf-lbl">1st Approver — Bishop/Branch Pres. or Stake/District Pres.</span>
-          <div class="paf-val">${escapeHtml(f.approver1Name)}</div>
-          <div class="paf-sig">${sig('approver1')}</div>
-          <span class="sub">Date: ${escapeHtml(fmtDate(f.approver1Date))}</span>
-        </div>
-        <div class="paf-cell">
-          <span class="paf-lbl">2nd Approver — Ward/Branch or Stake/District Counselor</span>
-          <div class="paf-val">${escapeHtml(f.approver2Name)}</div>
-          <div class="paf-sig">${sig('approver2')}</div>
-          <span class="sub">Date: ${escapeHtml(fmtDate(f.approver2Date))}</span>
-        </div>
-      </div>
-
-      ${f.txnType === 'Reimbursement' ? `
-      <div class="paf-section">FOR REIMBURSEMENT ONLY</div>
-      <div class="paf-row">
-        <div class="paf-cell">
-          <span class="paf-lbl">Signature of person receiving cash reimbursement</span>
-          <div class="paf-sig">${sig('reimburse')}</div>
-          <span class="sub">Date: ${escapeHtml(fmtDate(f.reimburseDate))}</span>
-        </div>
-      </div>` : ''}
-
-      ${f.txnType === 'Cash Advance' ? `
-      <div class="paf-section">FOR CASH ADVANCE ONLY</div>
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Signature of person receiving cash advance</span>
-          <div class="paf-sig">${sig('caReceive')}</div>
-          <span class="sub">Date: ${escapeHtml(fmtDate(f.caReceiveDate))}</span>
-        </div>
-        <div class="paf-cell paf-money">
-          <span>Amount of cash received</span><span class="op">+</span>
-          <span class="paf-amt">${money(f.caReceived)}</span>
-        </div>
-      </div>
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Signature of person returning excess cash</span>
-          <div class="paf-sig">${sig('caReturn')}</div>
-          <span class="sub">Date: ${escapeHtml(fmtDate(f.caReturnDate))}</span>
-        </div>
-        <div class="paf-cell paf-money">
-          <span>Amount spent (supporting docs)</span><span class="op">−</span>
-          <span class="paf-amt">${money(f.caSpent)}</span>
-        </div>
-      </div>
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Bishop/President signature (upon receipt of excess cash)</span>
-          <div class="paf-sig">${sig('caBishop')}</div>
-          <span class="sub">Date: ${escapeHtml(fmtDate(f.caBishopDate))}</span>
-        </div>
-        <div class="paf-cell paf-money">
-          <span>Excess cash returned</span><span class="op">=</span>
-          <span class="paf-amt">${money(f.caExcess)}</span>
-        </div>
-      </div>` : ''}
-
-      <div class="paf-section">FOR CLERK USE ONLY</div>
-      <div class="paf-row">
-        <div class="paf-cell" style="flex:2">
-          <span class="paf-lbl">Reference Number (YYYYMMDD-Amount)</span>
-          <div class="paf-val">${escapeHtml(f.refNumber)}</div>
-        </div>
-        <div class="paf-cell">
-          <span class="paf-lbl">Seq #</span>
-          <div class="paf-val">${escapeHtml(f.seq)}</div>
-        </div>
-      </div>
-
-      ${receipts ? `
-      <div class="paf-receipts">
-        <h4>Supporting documents / receipts</h4>
-        <div class="paf-receipts-grid">${receipts}</div>
-      </div>` : ''}
-    </div>`;
+      ${receipts ? `<div class="paf-receipts"><h4>Supporting documents / receipts</h4><div class="paf-receipts-grid">${receipts}</div></div>` : ''}`;
   }
 
   /* ================================================================
@@ -676,14 +647,16 @@
   }
 
   async function doPng() {
-    const sheet = $('#pafSheet');
+    const sheet = $('#pafSheet .paf-fill');
     if (!sheet) return;
     toast('Rendering image…');
     try {
       if (!window.html2canvas) {
         await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
       }
-      const canvas = await window.html2canvas(sheet, { scale: 2, backgroundColor: '#fff', useCORS: true });
+      // render at the form's native resolution (1260px) regardless of screen size
+      const scale = Math.max(1.5, (BW / (sheet.offsetWidth || BW)) * 1.6);
+      const canvas = await window.html2canvas(sheet, { scale, backgroundColor: '#fff', useCORS: true });
       const f = collect().fields;
       const name = ('PAF_' + (f.payee || 'form') + '_' + (f.activityDate || todayISO()))
         .replace(/[^a-z0-9_\-]+/gi, '_');
@@ -745,10 +718,17 @@
     // signature pads
     initSigPads();
 
-    // signature modal
-    ['mousedown', 'touchstart'].forEach(ev => sigCanvas.addEventListener(ev, sigStart, { passive: false }));
-    ['mousemove', 'touchmove'].forEach(ev => sigCanvas.addEventListener(ev, sigMove, { passive: false }));
-    ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(ev => sigCanvas.addEventListener(ev, sigEnd));
+    // signature modal — Pointer Events (unified mouse / touch / stylus)
+    if (window.PointerEvent) {
+      sigCanvas.addEventListener('pointerdown', sigStart, { passive: false });
+      sigCanvas.addEventListener('pointermove', sigMove, { passive: false });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => sigCanvas.addEventListener(ev, sigEnd));
+    } else {
+      ['mousedown', 'touchstart'].forEach(ev => sigCanvas.addEventListener(ev, sigStart, { passive: false }));
+      ['mousemove', 'touchmove'].forEach(ev => sigCanvas.addEventListener(ev, sigMove, { passive: false }));
+      ['mouseup', 'mouseleave', 'touchend', 'touchcancel'].forEach(ev => sigCanvas.addEventListener(ev, sigEnd));
+    }
+    window.addEventListener('resize', () => { if (!sigModal.hidden) setupCanvas(); });
     $('#sigClear').addEventListener('click', () => { setupCanvas(); sigDirty = false; });
     $('#sigDone').addEventListener('click', () => {
       const key = state.activeSig;

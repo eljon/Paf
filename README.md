@@ -7,9 +7,9 @@ accounts. All data stays on the device (`localStorage`).
 ## Features
 
 - **Digitizes the full PAF** — transaction type (Swipe / Reimbursement / Cash
-  Advance), unit, amount, payee, payment category, purpose, approvals, the
+  Advance), amount, payee, payment category, purpose, approvals, the
   Fast Offering, Reimbursement, and Cash Advance sections, and the clerk
-  reference block.
+  reference block. The unit is preset to **Kalayaan Ward**.
 - **On-screen signatures** — draw with finger or stylus for the requestor,
   both approvers, the fast-offering recipient, and cash-advance signers. Each
   signature is trimmed and stored with the form.
@@ -18,9 +18,11 @@ accounts. All data stays on the device (`localStorage`).
   the form and its output.
 - **Transaction history** — every saved form is listed and searchable. Open to
   edit, duplicate, preview, or delete.
-- **Filled-out form output** — a faithful, print-ready replica of the paper PAF
-  is generated from your entries. Export to **PDF** (via the browser's Print
-  dialog → *Save as PDF*) or download a **PNG** image.
+- **Filled-out form output** — your entries are overlaid directly onto the
+  **actual Payment Approval Form image** (checkmarks, text, signatures, and the
+  clerk boxes land in their real positions), not a re-drawn copy. Export to
+  **PDF** (via the browser's Print dialog → *Save as PDF*) or download a **PNG**
+  image.
 - **Smart sections** — the Fast Offering, Reimbursement, and Cash Advance
   blocks appear only when relevant, and the excess-cash total is calculated
   automatically.
