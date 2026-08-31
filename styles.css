@@ -321,16 +321,33 @@ textarea{resize:vertical;min-height:44px;}
 .sum-chip::after{content:"✎";font-size:11px;opacity:.6;}
 .sum-chip:active{background:#dbe3ef;}
 
-/* ---------- Request / Approval sub-tabs ---------- */
-.subtabs{
-  display:flex;gap:6px;background:#eef1f5;border-radius:12px;padding:5px;
-  position:sticky;top:calc(var(--topbar-h));z-index:15;margin-bottom:14px;
+/* ---------- Approver buttons ---------- */
+.approvers{display:flex;flex-direction:column;gap:12px;}
+.approver-btn{
+  display:flex;flex-direction:column;gap:3px;text-align:left;
+  padding:16px;border:2px dashed var(--accent);border-radius:12px;
+  background:#f2faf5;color:var(--text);transition:.15s;position:relative;
 }
-.subtab{
-  flex:1;background:transparent;border:0;padding:11px 6px;border-radius:9px;
-  font-size:14px;font-weight:700;color:var(--muted);transition:.15s;
+.approver-btn:active{background:#e6f4ec;}
+.approver-btn__role{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-d);}
+.approver-btn__name{font-size:17px;font-weight:700;color:var(--text);}
+.approver-btn__status{font-size:13px;font-weight:600;color:var(--accent-d);}
+.approver-btn.is-signed{border-style:solid;background:#fff;}
+.approver-btn.is-signed .approver-btn__status{color:var(--accent-d);}
+.approver-btn.is-signed::after{
+  content:"✓";position:absolute;top:14px;right:16px;
+  width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;
+  display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;
 }
-.subtab.is-active{background:#fff;color:var(--navy);box-shadow:var(--shadow);}
+
+/* ---------- Choice modal ---------- */
+.choice-list{display:flex;flex-direction:column;gap:10px;}
+.choice-opt{
+  display:block;width:100%;text-align:left;padding:16px 18px;
+  border:1.5px solid var(--line-2);border-radius:12px;background:#fbfcfe;
+  font-size:16px;font-weight:600;color:var(--text);transition:.15s;
+}
+.choice-opt:active{background:#eef4f9;border-color:var(--navy);}
 
 /* ---------- Unit badge (auto-filled ward) ---------- */
 .unit-badge{

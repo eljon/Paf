@@ -61,17 +61,12 @@
           </section>
         </div>
 
-        <!-- ===== DETAILS: Request / Approval tabs ===== -->
+        <!-- ===== DETAILS: request form, then approvals ===== -->
         <div id="detailsStep" hidden>
           <div class="summary" id="summary"></div>
 
-          <div class="subtabs" role="tablist">
-            <button type="button" class="subtab is-active" data-sub="request" role="tab">Request details</button>
-            <button type="button" class="subtab" data-sub="approve" role="tab">Approval details</button>
-          </div>
-
-          <!-- ---- REQUEST panel ---- -->
-          <div class="subpanel" data-panel="request" role="tabpanel">
+          <!-- ---- REQUEST content (always shown) ---- -->
+          <div id="requestContent">
             <section class="card">
               <h2 class="card__title">Details</h2>
               <div class="grid2">
@@ -137,30 +132,29 @@
                 <span>Add photo / receipt</span>
               </label>
             </section>
-
           </div>
 
-          <!-- ---- APPROVE panel ---- -->
-          <div class="subpanel" data-panel="approve" role="tabpanel" hidden>
+          <!-- ---- APPROVALS section (revealed after Submit) ---- -->
+          <div id="approvalsSection" hidden>
+            <!-- hidden storage for approver names / dates (filled via the flows) -->
+            <input type="hidden" id="approver1Name" name="approver1Name" />
+            <input type="hidden" id="approver1Date" name="approver1Date" />
+            <input type="hidden" id="approver2Name" name="approver2Name" />
+            <input type="hidden" id="approver2Date" name="approver2Date" />
+
             <section class="card">
               <h2 class="card__title">Approvals <span class="muted">(both required)</span></h2>
-              <div class="field">
-                <label for="approver1Name">1st approver <span class="req">required</span></label>
-                <p class="card__hint">Bishop/Branch President or Stake/District President</p>
-                <input id="approver1Name" name="approver1Name" type="text" autocomplete="off" placeholder="Printed name" />
-                <div class="sigrow">
-                  <div class="sigpad" data-sig="approver1"></div>
-                  <input class="sigdate" name="approver1Date" type="date" aria-label="1st approver date" />
-                </div>
-              </div>
-              <div class="field">
-                <label for="approver2Name">2nd approver <span class="req">required</span></label>
-                <p class="card__hint">Ward/Branch Counselor or Stake/District Counselor</p>
-                <input id="approver2Name" name="approver2Name" type="text" autocomplete="off" placeholder="Printed name" />
-                <div class="sigrow">
-                  <div class="sigpad" data-sig="approver2"></div>
-                  <input class="sigdate" name="approver2Date" type="date" aria-label="2nd approver date" />
-                </div>
+              <div class="approvers">
+                <button type="button" class="approver-btn" id="btnApprover1">
+                  <span class="approver-btn__role">1st approver</span>
+                  <span class="approver-btn__name" id="ap1Name">Bishop</span>
+                  <span class="approver-btn__status" id="ap1Status">Tap to sign</span>
+                </button>
+                <button type="button" class="approver-btn" id="btnApprover2">
+                  <span class="approver-btn__role">2nd approver</span>
+                  <span class="approver-btn__name" id="ap2Name">Choose approver</span>
+                  <span class="approver-btn__status" id="ap2Status">Tap to sign</span>
+                </button>
               </div>
             </section>
 
@@ -272,6 +266,18 @@
         <button class="btn btn--ghost" id="sigClear" type="button">Clear</button>
         <button class="btn btn--primary" id="sigDone" type="button">Done</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Approver choice modal -->
+  <div class="modal" id="choiceModal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__sheet">
+      <div class="modal__head">
+        <strong id="choiceTitle">Choose approver</strong>
+        <button class="modal__x" data-close aria-label="Close">✕</button>
+      </div>
+      <div class="choice-list" id="choiceList"></div>
     </div>
   </div>
 

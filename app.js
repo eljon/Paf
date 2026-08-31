@@ -125,10 +125,22 @@
   /* ================================================================
      Wizard (auto-advancing questions) + Request/Approval tabs
      ================================================================ */
-  let formStage = 'wizard';   // 'wizard' | 'details'
+  let formStage = 'wizard';       // 'wizard' | 'details'
   let wizIndex = 0;
-  let subTab = 'request';     // 'request' | 'approve'
+  let approvalsRevealed = false;  // approvals section shown after Submit
   let advanceTimer;
+
+  /* Approver roster */
+  const BISHOP = 'Eljon Serrano';
+  const COUNSELORS = ['John Sombrero', 'John Magno'];
+  const EXTRA_APPROVER = 'John Carlo Eduria';
+
+  // Bishop is the payee on a reimbursement/cash advance → he can't approve his own.
+  function isSelfApprovalCase() {
+    const t = radioVal('txnType');
+    const payee = (form.elements['payee'].value || '').trim().toLowerCase();
+    return (t === 'Reimbursement' || t === 'Cash Advance') && payee === BISHOP.toLowerCase();
+  }
 
   function radioVal(name) {
     const el = form.elements[name];
@@ -168,27 +180,102 @@
     window.scrollTo(0, 0);
   }
 
-  function showDetails(which) {
+  function showDetails(reveal) {
     formStage = 'details';
+    if (typeof reveal === 'boolean') approvalsRevealed = reveal;
     $('#wizard').hidden = true;
     $('#detailsStep').hidden = false;
     renderWizProgress(wizQuestions().length);
     renderSummary();
-    setSubTab(which || subTab || 'request');
+    applyDetailsUI();
     $('#formActions').hidden = currentTab !== 'form';
     window.scrollTo(0, 0);
   }
 
-  function setSubTab(which) {
-    subTab = which;
-    $$('.subtab').forEach(t => t.classList.toggle('is-active', t.dataset.sub === which));
-    $$('.subpanel').forEach(p => { p.hidden = p.dataset.panel !== which; });
-    // Request tab: a single Submit button. Approval tab: Clear / Save / Preview.
-    const req = which === 'request';
-    $('#btnSubmitRequest').hidden = !req;
-    $('#btnClear').hidden = req;
-    $('#btnSave').hidden = req;
-    $('#btnPreview').hidden = req;
+  // Toggle the approvals section + which action-bar buttons are shown.
+  function applyDetailsUI() {
+    $('#approvalsSection').hidden = !approvalsRevealed;
+    updateApproverButtons();
+    $('#btnSubmitRequest').hidden = approvalsRevealed;   // request-only Submit
+    $('#btnClear').hidden = !approvalsRevealed;
+    $('#btnSave').hidden = !approvalsRevealed;
+    $('#btnPreview').hidden = !approvalsRevealed;
+  }
+
+  function submitRequest() {
+    approvalsRevealed = true;
+    applyDetailsUI();
+    saveDraft();
+    const sec = $('#approvalsSection');
+    if (sec.scrollIntoView) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function hasApprovalData() {
+    const n1 = form.elements['approver1Name'] ? form.elements['approver1Name'].value : '';
+    const n2 = form.elements['approver2Name'] ? form.elements['approver2Name'].value : '';
+    return !!(n1 || n2 || state.signatures.approver1 || state.signatures.approver2);
+  }
+
+  function updateApproverButtons() {
+    const special = isSelfApprovalCase();
+    const n1 = form.elements['approver1Name'] ? form.elements['approver1Name'].value : '';
+    const n2 = form.elements['approver2Name'] ? form.elements['approver2Name'].value : '';
+    const s1 = !!state.signatures.approver1;
+    const s2 = !!state.signatures.approver2;
+    const d1 = form.elements['approver1Date'] ? form.elements['approver1Date'].value : '';
+    const d2 = form.elements['approver2Date'] ? form.elements['approver2Date'].value : '';
+    $('#ap1Name').textContent = n1 || (special ? 'Choose counselor' : 'Bishop');
+    $('#ap2Name').textContent = n2 || 'Choose approver';
+    $('#ap1Status').textContent = s1 ? (d1 ? 'Signed · ' + d1 : 'Signed') : 'Tap to sign';
+    $('#ap2Status').textContent = s2 ? (d2 ? 'Signed · ' + d2 : 'Signed') : 'Tap to sign';
+    $('#btnApprover1').classList.toggle('is-signed', s1);
+    $('#btnApprover2').classList.toggle('is-signed', s2);
+  }
+
+  // Approver flow: pick a name (if needed) → capture signature.
+  async function startApprover(which) {
+    let name;
+    if (which === 1) {
+      name = isSelfApprovalCase()
+        ? await openChoice('Choose 1st approver', COUNSELORS)
+        : BISHOP;                                   // Bishop signs directly
+    } else {
+      let opts;
+      if (isSelfApprovalCase()) {
+        const a1 = form.elements['approver1Name'].value;
+        opts = COUNSELORS.filter(n => n !== a1).concat([EXTRA_APPROVER]);
+      } else {
+        opts = COUNSELORS;
+      }
+      name = await openChoice('Choose 2nd approver', opts);
+    }
+    if (!name) return;                              // cancelled
+    const key = which === 1 ? 'approver1' : 'approver2';
+    form.elements[key + 'Name'].value = name;
+    updateApproverButtons();
+    saveDraft();
+    openSigModal(key);
+  }
+
+  // Promise-based choice modal
+  function openChoice(title, options) {
+    return new Promise(resolve => {
+      const modal = $('#choiceModal');
+      const list = $('#choiceList');
+      $('#choiceTitle').textContent = title;
+      list.innerHTML = '';
+      const finish = (val) => { modal.hidden = true; modal._finish = null; resolve(val); };
+      options.forEach(opt => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'choice-opt';
+        b.textContent = opt;
+        b.addEventListener('click', () => finish(opt));
+        list.appendChild(b);
+      });
+      modal._finish = finish;                       // used by data-close handlers
+      modal.hidden = false;
+    });
   }
 
   function renderSummary() {
@@ -211,18 +298,18 @@
   function resumeStage() {
     const qs = wizQuestions();
     const firstUnanswered = qs.findIndex(q => !radioVal(q));
-    if (firstUnanswered === -1) showDetails(subTab);
+    if (firstUnanswered === -1) showDetails();
     else showWizardStep(firstUnanswered);
   }
 
   function applyFormStage() {
-    if (formStage === 'details') showDetails(subTab);
+    if (formStage === 'details') showDetails();
     else showWizardStep(wizIndex);
   }
 
   function newForm() {
     resetForm(false);
-    subTab = 'request';
+    approvalsRevealed = false;
     renderSummary();
     showWizardStep(0);
   }
@@ -447,6 +534,7 @@
                 (d.receipts || []).length || Object.keys(d.signatures || {}).length)) {
         applyRecord(d);
         state.editingId = d.editingId || null;
+        approvalsRevealed = hasApprovalData();
         resumeStage();   // land on the right question / details tab
       }
     } catch {}
@@ -558,7 +646,7 @@
       case 'open':
         applyRecord(rec);
         state.editingId = id;
-        formStage = 'details'; subTab = 'request';
+        formStage = 'details'; approvalsRevealed = true;
         switchTab('form');
         toast('Loaded for editing');
         break;
@@ -570,7 +658,7 @@
       case 'dup': {
         applyRecord(rec);
         state.editingId = null;
-        formStage = 'details'; subTab = 'request';
+        formStage = 'details'; approvalsRevealed = true;
         switchTab('form');
         toast('Duplicated — save to keep');
         break;
@@ -809,6 +897,7 @@
     form.addEventListener('input', (e) => {
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
       if (e.target.name === 'caReceived' || e.target.name === 'caSpent') computeExcess();
+      if (e.target.name === 'payee' && approvalsRevealed) updateApproverButtons();
       saveDraft();
     });
     form.addEventListener('change', (e) => {
@@ -835,10 +924,18 @@
         if (i >= 0) showWizardStep(i);
       }
     });
-    $$('.subtab').forEach(t => t.addEventListener('click', () => setSubTab(t.dataset.sub)));
+    // Submit request -> reveal the approvals section
+    $('#btnSubmitRequest').addEventListener('click', submitRequest);
 
-    // Submit (request tab) -> move to approval tab
-    $('#btnSubmitRequest').addEventListener('click', () => { setSubTab('approve'); window.scrollTo(0, 0); });
+    // Approver buttons -> choose (if needed) then sign
+    $('#btnApprover1').addEventListener('click', () => startApprover(1));
+    $('#btnApprover2').addEventListener('click', () => startApprover(2));
+
+    // Choice modal close (backdrop / ✕) -> resolve as cancelled
+    $$('#choiceModal [data-close]').forEach(el => el.addEventListener('click', () => {
+      const m = $('#choiceModal');
+      if (m._finish) m._finish(null);
+    }));
 
     // Date fields: open the calendar picker on tap
     $$('input[type="date"]').forEach(el => {
@@ -876,6 +973,7 @@
         }
       }
       renderSignatures();
+      updateApproverButtons();
       saveDraft();
       closeSigModal();
     });
@@ -914,7 +1012,12 @@
     });
 
     // esc closes modal
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sigModal.hidden) closeSigModal(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!sigModal.hidden) closeSigModal();
+      const cm = $('#choiceModal');
+      if (!cm.hidden && cm._finish) cm._finish(null);
+    });
   }
 
   /* ================================================================
