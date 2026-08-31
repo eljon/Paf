@@ -67,7 +67,11 @@
   function collect() {
     const data = {};
     const fd = new FormData(form);
-    for (const [k, v] of fd.entries()) data[k] = v;
+    for (const [k, v] of fd.entries()) {
+      // foType is multi-select (checkboxes) → join into one comma list
+      if (k === 'foType') data.foType = data.foType ? data.foType + ', ' + v : v;
+      else data[k] = v;
+    }
     return {
       fields: data,
       signatures: { ...state.signatures },
@@ -78,10 +82,10 @@
   function applyRecord(rec) {
     resetForm(false);
     const f = rec.fields || {};
-    // radios
+    // radios / checkboxes
     setRadio('txnType', f.txnType);
     setRadio('category', f.category);
-    setRadio('foType', f.foType);
+    setFoTypes(f.foType);
     // text/date/number
     Object.entries(f).forEach(([k, v]) => {
       const el = form.elements[k];
@@ -102,6 +106,21 @@
     if (!els) return;
     const list = els.length ? Array.from(els) : [els];
     list.forEach(el => { el.checked = (el.value === val); });
+  }
+
+  // Currently-checked foType values
+  function foTypeValues() {
+    const els = form.elements['foType'];
+    if (!els) return [];
+    const list = els.length ? Array.from(els) : [els];
+    return list.filter(el => el.checked).map(el => el.value);
+  }
+  function setFoTypes(val) {
+    const set = (val || '').split(',').map(s => s.trim()).filter(Boolean);
+    const els = form.elements['foType'];
+    if (!els) return;
+    const list = els.length ? Array.from(els) : [els];
+    list.forEach(el => { el.checked = set.includes(el.value); });
   }
 
   /* ================================================================
@@ -147,6 +166,13 @@
     return el ? el.value : '';
   }
   function shortFO(v) { return v === 'Short-Term Shelter (Housing)' ? 'Housing' : v; }
+  function foTypeLabel() { return foTypeValues().map(shortFO).join(', '); }
+
+  // Is a wizard question answered? (foType is multi-select)
+  function answered(q) {
+    if (q === 'foType') return foTypeValues().length > 0;
+    return radioVal(q) !== '';
+  }
 
   // Ordered list of visible questions (foType only for Fast Offering)
   function wizQuestions() {
@@ -348,13 +374,13 @@
     if (!sum) return;
     sum.innerHTML = '';
     wizQuestions().forEach(q => {
-      const v = radioVal(q);
+      const v = q === 'foType' ? foTypeLabel() : radioVal(q);
       if (!v) return;
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'sum-chip';
       b.dataset.q = q;
-      b.textContent = q === 'foType' ? shortFO(v) : v;
+      b.textContent = v;
       sum.appendChild(b);
     });
   }
@@ -362,7 +388,7 @@
   // After answering a question, land on the next unanswered one, or details.
   function resumeStage() {
     const qs = wizQuestions();
-    const firstUnanswered = qs.findIndex(q => !radioVal(q));
+    const firstUnanswered = qs.findIndex(q => !answered(q));
     if (firstUnanswered === -1) showDetails();
     else showWizardStep(firstUnanswered);
   }
@@ -835,11 +861,12 @@
 
     // --- fast offering ---
     if (isFO) {
-      o += K(620, 398, f.foType === 'Food');
-      o += K(711, 398, f.foType === 'Medical');
-      o += K(799, 398, f.foType === 'Short-Term Shelter (Housing)');
-      o += K(1018, 398, f.foType === 'Utilities');
-      o += K(1101, 398, f.foType === 'Other');
+      const foSet = (f.foType || '').split(',').map(s => s.trim());
+      o += K(620, 398, foSet.includes('Food'));
+      o += K(711, 398, foSet.includes('Medical'));
+      o += K(799, 398, foSet.includes('Short-Term Shelter (Housing)'));
+      o += K(1018, 398, foSet.includes('Utilities'));
+      o += K(1101, 398, foSet.includes('Other'));
       o += T(730, 421, f.foRecipient, { w: 300 });
       o += T(1050, 421, f.foMRN, { w: 170 });
       o += S('foMember', 725, 452, 360, 40);
@@ -973,13 +1000,19 @@
       if (WIZ_NAMES.includes(e.target.name)) {
         updateConditionals();
         renderSummary();
-        // auto-advance to the next question (or the details step)
-        if (formStage === 'wizard') {
+        // auto-advance single-choice questions; foType is multi-select (needs Continue)
+        if (formStage === 'wizard' && e.target.name !== 'foType') {
           clearTimeout(advanceTimer);
           advanceTimer = setTimeout(resumeStage, 260);
         }
       }
       saveDraft();
+    });
+
+    // foType (multi-select) → Continue advances to details
+    $('#foContinue').addEventListener('click', () => {
+      if (answered('foType')) showDetails();
+      else toast('Select at least one');
     });
 
     // wizard back + summary chips + request/approval sub-tabs

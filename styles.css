@@ -214,8 +214,10 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 @keyframes wizIn{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:translateX(0);}}
 .wiz-q{
   font-size:28px;font-weight:700;color:var(--label);line-height:1.2;letter-spacing:-.02em;
-  margin:4px 2px 22px;
+  margin:4px 2px 8px;
 }
+.wiz-sub{font-size:15px;color:var(--label-2);margin:0 2px 20px;}
+.wiz-continue{width:100%;margin-top:22px;}
 .opts{display:flex;flex-direction:column;gap:12px;}
 .opts--grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .opt{position:relative;display:block;}
