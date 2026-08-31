@@ -203,6 +203,7 @@
     $('#wizBack').hidden = idx === 0;
     renderWizProgress(idx);
     $('#formActions').hidden = true;
+    $('#btnShare').hidden = true;
     window.scrollTo(0, 0);
   }
 
@@ -216,6 +217,7 @@
     refreshCalendar();
     applyDetailsUI();
     $('#formActions').hidden = currentTab !== 'form';
+    $('#btnShare').hidden = currentTab !== 'form';
     window.scrollTo(0, 0);
   }
 
@@ -778,6 +780,7 @@
     $('#tabbar').hidden = false;
     $('#btnBack').hidden = true;
     $('#btnNew').hidden = false;
+    $('#btnShare').hidden = true;   // shown again by the form stage if applicable
     $$('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === tab));
     $('#topbarTitle').textContent = tab === 'history' ? 'History' : 'Payment Approval';
     if (tab === 'form') applyFormStage();
@@ -796,6 +799,7 @@
     $('#tabbar').hidden = true;
     $('#btnBack').hidden = false;
     $('#btnNew').hidden = true;
+    $('#btnShare').hidden = false;
     $('#topbarTitle').textContent = 'Preview';
     window.scrollTo(0, 0);
   }
@@ -965,6 +969,79 @@
   }
 
   /* ================================================================
+     Share a transaction via a self-contained link
+     ================================================================ */
+  const SHARE_MAX = 200000;  // links carry signatures; photos are left out
+
+  function b64EncodeUnicode(s) { return btoa(unescape(encodeURIComponent(s))); }
+  function b64DecodeUnicode(s) { return decodeURIComponent(escape(atob(s))); }
+  function toUrlSafe(b) { return b.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function fromUrlSafe(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return s; }
+
+  // Encode the current transaction into a link. Photos (receipts) are never
+  // put in the URL — they're too large; signatures are kept.
+  function buildShareURL() {
+    const rec = collect();
+    const hadReceipts = (rec.receipts || []).length > 0;
+    const variants = [
+      { fields: rec.fields, signatures: rec.signatures },  // fields + signatures
+      { fields: rec.fields },                              // fallback: fields only
+    ];
+    const base = location.origin + location.pathname;
+    for (let i = 0; i < variants.length; i++) {
+      const enc = toUrlSafe(b64EncodeUnicode(JSON.stringify({ v: 1, ...variants[i] })));
+      const url = base + '#t=' + enc;
+      if (url.length <= SHARE_MAX || i === variants.length - 1) {
+        return { url, hadReceipts, droppedSigs: i > 0 };
+      }
+    }
+  }
+
+  async function shareTransaction() {
+    const f = collect().fields;
+    if (!f.payee && !f.amount && !f.purpose) { toast('Add transaction details first'); return; }
+    const out = buildShareURL();
+    const url = out.url;
+    const title = 'Payment Approval' + (f.payee ? ' — ' + f.payee : '');
+    const amt = f.amount ? ' (₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) + ')' : '';
+    const note = out.droppedSigs ? ' — too large; signatures not included'
+      : out.hadReceipts ? ' — photos not included in link' : '';
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text: title + amt, url });
+        return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') return;   // user cancelled
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Link copied' + note);
+    } catch (e) {
+      window.prompt('Copy this link:', url);
+    }
+  }
+
+  // Load a shared transaction from the URL hash (#t=...). Returns true if imported.
+  function importFromHash() {
+    const m = (location.hash || '').match(/[#&]t=([^&]+)/);
+    if (!m) return false;
+    try {
+      const data = JSON.parse(b64DecodeUnicode(fromUrlSafe(m[1])));
+      if (data && data.fields) {
+        applyRecord({ fields: data.fields, signatures: data.signatures || {}, receipts: data.receipts || [] });
+        state.editingId = null;
+        approvalsRevealed = hasApprovalData();
+        history.replaceState(null, '', location.pathname + location.search);  // don't re-import on refresh
+        toast('Shared transaction loaded');
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  /* ================================================================
      Utilities
      ================================================================ */
   function escapeHtml(v) {
@@ -1124,6 +1201,7 @@
     $('#btnEditFromPreview').addEventListener('click', backFromPreview);
     $('#btnBack').addEventListener('click', backFromPreview);
     $('#btnNew').addEventListener('click', () => { newForm(); switchTab('form'); });
+    $('#btnShare').addEventListener('click', shareTransaction);
 
     // tabs
     $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
@@ -1151,7 +1229,9 @@
   function init() {
     bind();
     updateConditionals();
-    loadDraft();
+    // A shared link takes precedence over any local draft
+    if (importFromHash()) { formStage = 'details'; }
+    else loadDraft();
     switchTab('form');
   }
 
