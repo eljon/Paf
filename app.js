@@ -702,7 +702,7 @@
 
     filtered.forEach(r => {
       const f = r.fields || {};
-      const amt = f.amount ? '$' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—';
+      const amt = f.amount ? '₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—';
       const date = f.activityDate || (r.createdAt ? r.createdAt.slice(0, 10) : '');
       const card = document.createElement('div');
       card.className = 'hcard';
@@ -848,7 +848,7 @@
     // --- row 1 ---
     o += T(40, 230, f.unit || 'Kalayaan Ward', { bold: true });
     o += T(610, 238, fmtDate(f.activityDate));
-    o += T(905, 236, f.amount ? '$' + money(f.amount) : '', { bold: true });
+    o += T(905, 236, f.amount ? '₱' + money(f.amount) : '', { bold: true });
 
     // --- payee + category ---
     o += T(40, 296, f.payee, { bold: true, w: 540 });
