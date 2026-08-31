@@ -3,7 +3,7 @@
    ================================================================ */
 :root{
   /* Apple system palette (light) */
-  --bg:#f2f2f7;                 /* systemGroupedBackground */
+  --bg:#dfe2e9;                 /* grouped background (darkened for card contrast) */
   --card:#ffffff;               /* secondarySystemGroupedBackground */
   --card-2:#f9f9fb;
   --fill:rgba(118,118,128,.12); /* tertiary system fill (inputs) */
