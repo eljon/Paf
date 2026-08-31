@@ -66,11 +66,13 @@
           </section>
         </div>
 
-        <!-- ===== DETAILS: request form, then approvals ===== -->
+        <!-- ===== DETAILS: request / acknowledgement / approval ===== -->
         <div id="detailsStep" hidden>
+          <input type="hidden" id="status" name="status" />
           <div class="summary" id="summary"></div>
+          <div class="stage-summary" id="stageSummary" hidden></div>
 
-          <!-- ---- REQUEST content (always shown) ---- -->
+          <!-- ================= REQUEST (create) ================= -->
           <div id="requestContent">
             <section class="card">
               <h2 class="card__title">Details</h2>
@@ -96,21 +98,6 @@
               </div>
             </section>
 
-            <section class="card">
-              <h2 class="card__title">Requestor</h2>
-              <div class="field">
-                <label for="requestorName">Organization leader / Requestor name</label>
-                <input id="requestorName" name="requestorName" type="text" autocomplete="off" />
-                <div class="sigrow">
-                  <div class="sigpad" data-sig="requestor"></div>
-                  <input class="sigdate" name="requestorDate" type="date" aria-label="Requestor date" />
-                </div>
-              </div>
-            </section>
-
-            <!-- Inline Submit (used for Cash Advance / Reimbursement, right after the requestor signs) -->
-            <button type="button" class="btn btn--accent submit-inline" id="btnSubmitInline" hidden>Submit ›</button>
-
             <section class="card card--conditional" id="fastOfferingCard" hidden>
               <h2 class="card__title">Fast offering expenditure</h2>
               <p class="card__hint">Attach Bishop's Guide to Self-Reliance Plan (p.1) and Fast Offering Assistance Request form.</p>
@@ -124,13 +111,35 @@
                   <input id="foMRN" name="foMRN" type="text" inputmode="numeric" autocomplete="off" />
                 </div>
               </div>
+            </section>
+
+            <section class="card">
+              <h2 class="card__title">Requestor</h2>
               <div class="field">
-                <label>Signature of member receiving assistance <span class="muted">(verify items before signing)</span></label>
-                <div class="sigpad" data-sig="foMember"></div>
+                <label for="requestorName">Organization leader / Requestor name</label>
+                <input id="requestorName" name="requestorName" type="text" autocomplete="off" />
+                <div class="sigrow">
+                  <div class="sigpad" data-sig="requestor"></div>
+                  <input class="sigdate" name="requestorDate" type="date" aria-label="Requestor date" />
+                </div>
               </div>
             </section>
 
-            <section class="card card--conditional" id="reimbursementCard" hidden>
+            <section class="card">
+              <h2 class="card__title">Receipts &amp; supporting docs</h2>
+              <div class="receipts" id="receiptGrid"></div>
+              <label class="uploader">
+                <input type="file" id="receiptInput" accept="image/*" capture="environment" multiple hidden />
+                <span class="uploader__icon">📷</span>
+                <span>Add photo / receipt</span>
+              </label>
+            </section>
+          </div>
+
+          <!-- ================= ACKNOWLEDGEMENT ================= -->
+          <div id="ackContent" hidden>
+            <section class="card" id="reimbursementCard" hidden>
+              <h2 class="card__title">Acknowledgement</h2>
               <div class="field">
                 <label for="reimburseName">Name of person receiving cash reimbursement</label>
                 <input id="reimburseName" name="reimburseName" type="text" autocomplete="off" placeholder="Name" />
@@ -144,7 +153,8 @@
               </div>
             </section>
 
-            <section class="card card--conditional" id="cashAdvanceCard" hidden>
+            <section class="card" id="cashAdvanceCard" hidden>
+              <h2 class="card__title">Acknowledgement</h2>
               <p class="card__hint">Full accounting required: official receipts, invoices, and return of excess cash.</p>
               <div class="field">
                 <label for="caReceiveName">Person receiving cash advance</label>
@@ -184,20 +194,32 @@
               </div>
             </section>
 
-            <section class="card">
-              <h2 class="card__title">Receipts &amp; supporting docs</h2>
-              <div class="receipts" id="receiptGrid"></div>
-              <label class="uploader">
-                <input type="file" id="receiptInput" accept="image/*" capture="environment" multiple hidden />
-                <span class="uploader__icon">📷</span>
-                <span>Add photo / receipt</span>
-              </label>
+            <section class="card" id="ackFoCard" hidden>
+              <h2 class="card__title">Acknowledgement</h2>
+              <div class="field">
+                <label>Signature of member receiving assistance <span class="muted">(verify items before signing)</span></label>
+                <div class="sigpad" data-sig="foMember"></div>
+              </div>
+            </section>
+
+            <section class="card" id="ackGenericCard" hidden>
+              <h2 class="card__title">Acknowledgement</h2>
+              <div class="field">
+                <label for="ackName">Received by</label>
+                <input id="ackName" name="ackName" type="text" autocomplete="off" placeholder="Name" />
+              </div>
+              <div class="field">
+                <label>Signature <span class="muted">(sign upon receiving)</span></label>
+                <div class="sigrow">
+                  <div class="sigpad" data-sig="acknowledge"></div>
+                  <input class="sigdate" name="ackDate" type="date" aria-label="Acknowledgement date" />
+                </div>
+              </div>
             </section>
           </div>
 
-          <!-- ---- APPROVALS section (revealed after Submit) ---- -->
+          <!-- ================= APPROVAL ================= -->
           <div id="approvalsSection" hidden>
-            <!-- hidden storage for approver names / dates (filled via the flows) -->
             <input type="hidden" id="approver1Name" name="approver1Name" />
             <input type="hidden" id="approver1Date" name="approver1Date" />
             <input type="hidden" id="approver2Name" name="approver2Name" />
@@ -225,6 +247,16 @@
       </form>
     </main>
 
+    <!-- ============ QUEUE VIEW ============ -->
+    <main class="view view--queue" id="viewQueue" hidden>
+      <div id="queueList" class="queue-list"></div>
+      <div class="empty" id="queueEmpty" hidden>
+        <div class="empty__icon">📋</div>
+        <p>Nothing in the queue yet.</p>
+        <button class="btn" id="btnQueueNew">Create a request</button>
+      </div>
+    </main>
+
     <!-- ============ HISTORY VIEW ============ -->
     <main class="view view--history" id="viewHistory" hidden>
       <div class="history-head">
@@ -245,16 +277,19 @@
 
     <!-- ============ BOTTOM NAV ============ -->
     <nav class="tabbar" id="tabbar">
-      <button class="tab is-active" data-tab="form"><span class="tab__ico">📝</span><span>Form</span></button>
+      <button class="tab is-active" data-tab="form"><span class="tab__ico">📝</span><span>New</span></button>
+      <button class="tab" data-tab="queue"><span class="tab__ico">📋</span><span>Queue</span></button>
       <button class="tab" data-tab="history"><span class="tab__ico">🗂️</span><span>History</span></button>
     </nav>
 
     <!-- ============ FORM ACTION BAR ============ -->
     <div class="actionbar" id="formActions">
+      <button class="btn btn--ghost" id="btnClear" type="button" hidden>Clear</button>
+      <button class="btn btn--primary" id="btnPreview" type="button" hidden>Preview</button>
       <button class="btn btn--accent" id="btnSubmitRequest" type="button" hidden>Submit ›</button>
-      <button class="btn btn--ghost" id="btnClear" type="button">Clear</button>
-      <button class="btn btn--primary" id="btnSave" type="button">Save</button>
-      <button class="btn btn--accent" id="btnPreview" type="button">Preview</button>
+      <button class="btn btn--accent" id="btnMarkWithdrawn" type="button" hidden>Mark as withdrawn ✓</button>
+      <button class="btn btn--accent" id="btnConfirmAck" type="button" hidden>Confirm receipt ✓</button>
+      <button class="btn btn--accent" id="btnMarkApproved" type="button" hidden>Mark approved ✓</button>
     </div>
 
     <!-- ============ PREVIEW ACTION BAR ============ -->

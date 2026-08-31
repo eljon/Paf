@@ -399,6 +399,37 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 .linkbtn{background:none;border:0;color:var(--blue);font-size:15px;font-weight:400;padding:2px 0;}
 .linkbtn--danger{color:var(--red);}
 
+/* ---------- Queue (workflow buckets) ---------- */
+.queue-list{display:flex;flex-direction:column;gap:22px;}
+.queue-group{}
+.queue-head{
+  display:flex;align-items:center;gap:8px;margin:0 4px 10px;
+  font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;color:var(--label-2);
+}
+.queue-count{
+  background:var(--fill);color:var(--label);border-radius:999px;
+  font-size:12px;font-weight:700;padding:1px 9px;letter-spacing:0;
+}
+.queue-empty{
+  padding:16px;text-align:center;color:var(--label-3);font-size:14px;
+  background:var(--card);border-radius:var(--radius-card);box-shadow:var(--shadow);
+}
+.hcard__chev{color:var(--label-3);font-size:26px;font-weight:300;line-height:1;margin-left:2px;}
+
+/* ---------- Stage summary (read-only header in a stage) ---------- */
+.stage-summary{
+  background:var(--card);border-radius:var(--radius-card);
+  padding:16px;margin-bottom:16px;box-shadow:var(--shadow);
+}
+.stage-summary__status{
+  display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;
+  padding:3px 9px;border-radius:7px;margin-bottom:10px;background:var(--blue-tint);color:var(--blue);
+}
+.stage-summary__payee{font-size:20px;font-weight:700;letter-spacing:-.01em;}
+.stage-summary__amount{font-size:20px;font-weight:700;color:var(--label);float:right;}
+.stage-summary__meta{font-size:14px;color:var(--label-2);margin-top:4px;clear:both;}
+.stage-summary__purpose{font-size:14px;color:var(--label);margin-top:8px;}
+
 .empty{text-align:center;padding:64px 20px;color:var(--label-2);}
 .empty__icon{font-size:46px;margin-bottom:12px;}
 .empty .btn{flex:0 0 auto;display:inline-block;margin-top:14px;padding:13px 24px;background:var(--blue);color:#fff;}

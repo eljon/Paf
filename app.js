@@ -18,6 +18,7 @@
     caReceive:  'Person receiving cash advance',
     caReturn:   'Person returning excess cash',
     caBishop:   'Bishop / President',
+    acknowledge:'Received by',
   };
 
   /* Signature key -> date field it should auto-fill when signed */
@@ -29,6 +30,15 @@
     caReceive:  'caReceiveDate',
     caReturn:   'caReturnDate',
     caBishop:   'caBishopDate',
+    acknowledge:'ackDate',
+  };
+
+  /* ---------- Workflow statuses ---------- */
+  const STATUS_LABEL = {
+    withdrawal:      'For Withdrawal',
+    acknowledgement: 'For Acknowledgement',
+    approval:        'For Approval',
+    done:            'Approved',
   };
 
   /* ---------- App state ---------- */
@@ -127,12 +137,25 @@
      Conditional sections
      ================================================================ */
   function updateConditionals() {
-    const type = form.elements['txnType'].value;
-    const cat = form.elements['category'].value;
-    $('#reimbursementCard').hidden = type !== 'Reimbursement';
-    $('#cashAdvanceCard').hidden = type !== 'Cash Advance';
-    $('#fastOfferingCard').hidden = cat !== 'Fast Offering';
+    // Only the request-side Fast Offering card (recipient name/MRN).
+    $('#fastOfferingCard').hidden = form.elements['category'].value !== 'Fast Offering';
   }
+
+  // Which acknowledgement card applies to the current transaction.
+  function ackKind() {
+    const t = radioVal('txnType');
+    if (t === 'Reimbursement') return { card: 'reimbursementCard', sig: 'reimburse' };
+    if (t === 'Cash Advance') return { card: 'cashAdvanceCard', sig: 'caReceive' };
+    if (radioVal('category') === 'Fast Offering') return { card: 'ackFoCard', sig: 'foMember' };
+    return { card: 'ackGenericCard', sig: 'acknowledge' };
+  }
+  function renderAckCards() {
+    const which = ackKind().card;
+    ['reimbursementCard', 'cashAdvanceCard', 'ackFoCard', 'ackGenericCard']
+      .forEach(id => { $('#' + id).hidden = id !== which; });
+  }
+  function ackSigned() { return !!state.signatures[ackKind().sig]; }
+  function bothApproversSigned() { return !!(state.signatures.approver1 && state.signatures.approver2); }
 
   function computeExcess() {
     const rec = parseFloat(form.elements['caReceived'].value) || 0;
@@ -144,10 +167,11 @@
   /* ================================================================
      Wizard (auto-advancing questions) + Request/Approval tabs
      ================================================================ */
-  let formStage = 'wizard';       // 'wizard' | 'details'
+  // formMode: 'wizard' | 'create' | 'withdrawal' | 'acknowledgement' | 'approval' | 'done'
+  let formMode = 'wizard';
   let wizIndex = 0;
-  let approvalsRevealed = false;  // approvals section shown after Submit
   let advanceTimer;
+  const isStage = () => ['withdrawal', 'acknowledgement', 'approval', 'done'].includes(formMode);
 
   /* Approver roster */
   const BISHOP = 'Eljon Serrano';
@@ -195,7 +219,7 @@
   function showWizardStep(idx) {
     const qs = wizQuestions();
     idx = Math.max(0, Math.min(idx, qs.length - 1));
-    formStage = 'wizard';
+    formMode = 'wizard';
     wizIndex = idx;
     $('#wizard').hidden = false;
     $('#detailsStep').hidden = true;
@@ -207,17 +231,76 @@
     window.scrollTo(0, 0);
   }
 
-  function showDetails(reveal) {
-    formStage = 'details';
-    if (typeof reveal === 'boolean') approvalsRevealed = reveal;
+  // Show the details step (create request, or a workflow stage).
+  function showDetails() {
+    if (formMode === 'wizard') formMode = 'create';
     $('#wizard').hidden = true;
     $('#detailsStep').hidden = false;
-    renderWizProgress(wizQuestions().length);
-    renderSummary();
-    refreshCalendar();
-    applyDetailsUI();   // owns #formActions visibility
+    const create = formMode === 'create';
+
+    $('#summary').hidden = !create;
+    $('#stageSummary').hidden = create;
+    $('#requestContent').hidden = !create;
+    $('#ackContent').hidden = formMode !== 'acknowledgement';
+    $('#approvalsSection').hidden = formMode !== 'approval';
+
+    if (create) {
+      renderWizProgress(wizQuestions().length);
+      renderSummary();
+      refreshCalendar();
+    } else {
+      renderStageSummary();
+      if (formMode === 'acknowledgement') renderAckCards();
+      if (formMode === 'approval') updateApproverButtons();
+    }
+    renderStageActions();
     $('#btnShare').hidden = currentTab !== 'form';
     window.scrollTo(0, 0);
+  }
+
+  // Which action-bar buttons show for the current mode.
+  function renderStageActions() {
+    ['#btnSubmitRequest', '#btnClear', '#btnPreview',
+     '#btnMarkWithdrawn', '#btnConfirmAck', '#btnMarkApproved']
+      .forEach(id => { $(id).hidden = true; });
+    if (currentTab !== 'form') { $('#formActions').hidden = true; return; }
+    $('#formActions').hidden = false;
+    switch (formMode) {
+      case 'create':
+        $('#btnClear').hidden = false;
+        $('#btnSubmitRequest').hidden = false;
+        break;
+      case 'withdrawal':
+        $('#btnPreview').hidden = false;
+        $('#btnMarkWithdrawn').hidden = false;
+        break;
+      case 'acknowledgement':
+        $('#btnPreview').hidden = false;
+        $('#btnConfirmAck').hidden = false;
+        $('#btnConfirmAck').disabled = !ackSigned();
+        break;
+      case 'approval':
+        $('#btnPreview').hidden = false;
+        $('#btnMarkApproved').hidden = false;
+        $('#btnMarkApproved').disabled = !bothApproversSigned();
+        break;
+      default: // done
+        $('#btnPreview').hidden = false;
+    }
+  }
+
+  function renderStageSummary() {
+    const f = collect().fields;
+    const el = $('#stageSummary');
+    const amt = f.amount ? '₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '';
+    const date = f.activityDate ? fmtLongDate(f.activityDate) : '';
+    const meta = [f.txnType, f.category, date].filter(Boolean).join(' · ');
+    el.innerHTML =
+      `<span class="stage-summary__status">${STATUS_LABEL[form.elements['status'].value] || ''}</span>
+       ${amt ? `<span class="stage-summary__amount">${amt}</span>` : ''}
+       <div class="stage-summary__payee">${escapeHtml(f.payee || 'Untitled')}</div>
+       <div class="stage-summary__meta">${escapeHtml(meta)}</div>
+       ${f.purpose ? `<div class="stage-summary__purpose">${escapeHtml(f.purpose)}</div>` : ''}`;
   }
 
   /* ---------- Inline calendar (activity date) ---------- */
@@ -284,37 +367,68 @@
     renderActivity();
   }
 
-  // Toggle the approvals section + which action-bar buttons are shown.
-  function applyDetailsUI() {
-    $('#approvalsSection').hidden = !approvalsRevealed;
-    updateApproverButtons();
-    // Cash Advance / Reimbursement submit inline (right after the requestor);
-    // other types submit from the bottom action bar.
-    const t = radioVal('txnType');
-    const inlineType = (t === 'Cash Advance' || t === 'Reimbursement');
-    const beforeApproval = !approvalsRevealed;
-    $('#btnSubmitInline').hidden = !(beforeApproval && inlineType);
-    $('#btnSubmitRequest').hidden = !(beforeApproval && !inlineType);
-    $('#btnClear').hidden = beforeApproval;
-    $('#btnSave').hidden = beforeApproval;
-    $('#btnPreview').hidden = beforeApproval;
-    // Hide the bottom bar entirely when it has no visible buttons.
-    const bottomHasButtons = approvalsRevealed || !inlineType;
-    $('#formActions').hidden = (currentTab !== 'form') || !bottomHasButtons;
+  /* ---------- Persist + workflow transitions ---------- */
+  function genId() { return 'rec_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  // Build the current record, save to the local cache (+ cloud), return it.
+  function persist(status) {
+    const payload = collect();
+    if (status) payload.fields.status = status;
+    const recs = loadRecords();
+    const now = new Date().toISOString();
+    const existing = state.editingId && recs.find(r => r.id === state.editingId);
+    let record;
+    if (existing) {
+      record = { ...existing, ...payload, updatedAt: now };
+    } else {
+      const id = state.editingId || genId();
+      record = { id, ...payload, createdAt: now, updatedAt: now };
+      state.editingId = id;
+    }
+    if (status) { record.status = status; if (form.elements['status']) form.elements['status'].value = status; }
+    saveRecords([record, ...recs.filter(r => r.id !== record.id)]);
+    clearDraft();
+    if (window.Cloud && window.Cloud.enabled) {
+      window.Cloud.save(record).catch(err => console.error('Cloud save failed', err));
+    }
+    return record;
   }
 
+  // Create → submit a new request (enters the "For Withdrawal" queue).
   function submitRequest() {
-    approvalsRevealed = true;
-    applyDetailsUI();
-    saveDraft();
-    const sec = $('#approvalsSection');
-    if (sec.scrollIntoView) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const f = collect().fields;
+    if (!f.payee && !f.amount && !f.purpose) { toast('Add transaction details first'); return; }
+    persist('withdrawal');
+    toast('Sent for withdrawal');
+    newForm();
+    switchTab('queue');
   }
 
-  function hasApprovalData() {
-    const n1 = form.elements['approver1Name'] ? form.elements['approver1Name'].value : '';
-    const n2 = form.elements['approver2Name'] ? form.elements['approver2Name'].value : '';
-    return !!(n1 || n2 || state.signatures.approver1 || state.signatures.approver2);
+  function advanceStage(newStatus, msg) {
+    persist(newStatus);
+    toast(msg);
+    switchTab('queue');
+  }
+  function markWithdrawn() { advanceStage('acknowledgement', 'Marked as withdrawn'); }
+  function confirmAck() {
+    if (!ackSigned()) { toast('Add the acknowledgement signature first'); return; }
+    advanceStage('approval', 'Receipt confirmed');
+  }
+  function markApproved() {
+    if (!bothApproversSigned()) { toast('Both approvers must sign'); return; }
+    advanceStage('done', 'Approved');
+  }
+
+  // Open a record at its current workflow stage.
+  function openStage(id) {
+    const rec = loadRecords().find(r => r.id === id);
+    if (!rec) return;
+    applyRecord(rec);
+    state.editingId = id;
+    const st = rec.status || 'withdrawal';
+    if (form.elements['status']) form.elements['status'].value = st;
+    formMode = st;
+    switchTab('form');
   }
 
   function updateApproverButtons() {
@@ -399,18 +513,18 @@
   function resumeStage() {
     const qs = wizQuestions();
     const firstUnanswered = qs.findIndex(q => !answered(q));
-    if (firstUnanswered === -1) showDetails();
+    if (firstUnanswered === -1) { formMode = 'create'; showDetails(); }
     else showWizardStep(firstUnanswered);
   }
 
   function applyFormStage() {
-    if (formStage === 'details') showDetails();
-    else showWizardStep(wizIndex);
+    if (formMode === 'wizard') showWizardStep(wizIndex);
+    else showDetails();
   }
 
   function newForm() {
     resetForm(false);
-    approvalsRevealed = false;
+    formMode = 'wizard';
     renderSummary();
     showWizardStep(0);
   }
@@ -418,24 +532,33 @@
   /* ================================================================
      Signature pads
      ================================================================ */
+  // Delegated so pads shown/hidden across stages all work.
   function initSigPads() {
-    $$('.sigpad').forEach(pad => {
+    document.addEventListener('click', (e) => {
+      const pad = e.target.closest('.sigpad');
+      if (!pad || !pad.dataset.sig) return;
       const key = pad.dataset.sig;
-      pad.innerHTML = '<button type="button" class="sigpad__clear" aria-label="Clear signature">✕</button>';
-      pad.addEventListener('click', (e) => {
-        if (e.target.closest('.sigpad__clear')) {
-          delete state.signatures[key];
-          renderSignatures();
-          saveDraft();
-          return;
-        }
-        openSigModal(key);
-      });
+      if (e.target.closest('.sigpad__clear')) {
+        delete state.signatures[key];
+        renderSignatures();
+        renderStageActions();
+        saveDraft();
+        return;
+      }
+      openSigModal(key);
     });
   }
 
   function renderSignatures() {
     $$('.sigpad').forEach(pad => {
+      if (!pad.querySelector('.sigpad__clear')) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'sigpad__clear';
+        b.setAttribute('aria-label', 'Clear signature');
+        b.textContent = '✕';
+        pad.appendChild(b);
+      }
       const key = pad.dataset.sig;
       const data = state.signatures[key];
       const clearBtn = pad.querySelector('.sigpad__clear');
@@ -635,8 +758,9 @@
                 (d.receipts || []).length || Object.keys(d.signatures || {}).length)) {
         applyRecord(d);
         state.editingId = d.editingId || null;
-        approvalsRevealed = hasApprovalData();
-        resumeStage();   // land on the right question / details tab
+        const st = (d.fields && d.fields.status) || '';
+        if (st && st !== 'create') { formMode = st; if (form.elements['status']) form.elements['status'].value = st; showDetails(); }
+        else resumeStage();   // land on the right question / details step
       }
     } catch {}
   }
@@ -659,39 +783,50 @@
   }
 
   /* ================================================================
-     Save record
+     Queue view (workflow buckets)
      ================================================================ */
-  function saveRecord() {
-    const payload = collect();
-    if (!payload.fields.payee && !payload.fields.amount && !payload.fields.purpose) {
-      toast('Add a payee or amount first');
-      return;
-    }
-    const recs = loadRecords();
-    const now = new Date().toISOString();
-    let record;
-    const existing = state.editingId && recs.find(r => r.id === state.editingId);
-    if (existing) {
-      record = { ...existing, ...payload, updatedAt: now };
-    } else {
-      const id = state.editingId || 'rec_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      record = { id, ...payload, createdAt: now, updatedAt: now };
-      state.editingId = id;
-    }
-    // Update local cache immediately (newest first)
-    const next = [record, ...recs.filter(r => r.id !== record.id)];
-    saveRecords(next);
-    clearDraft();
+  function queueCard(r) {
+    const f = r.fields || {};
+    const amt = f.amount ? '₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—';
+    const date = f.activityDate || (r.createdAt ? r.createdAt.slice(0, 10) : '');
+    const card = document.createElement('div');
+    card.className = 'hcard';
+    card.dataset.act = 'stage';
+    card.dataset.id = r.id;
+    card.innerHTML = `
+      <div class="hcard__body">
+        <div class="hcard__top">
+          <span class="hcard__payee">${escapeHtml(f.payee || 'Untitled')}</span>
+          <span class="hcard__amount">${amt}</span>
+        </div>
+        <div class="hcard__meta">${escapeHtml([f.txnType, f.category, date].filter(Boolean).join(' · '))}</div>
+        ${f.purpose ? `<div class="hcard__meta">${escapeHtml(f.purpose)}</div>` : ''}
+      </div>
+      <span class="hcard__chev">›</span>`;
+    return card;
+  }
 
-    // Push to the cloud when configured
-    if (window.Cloud && window.Cloud.enabled) {
-      toast('Saving to cloud…');
-      window.Cloud.save(record)
-        .then(() => toast('Saved to cloud'))
-        .catch(err => { console.error(err); toast('Saved locally — cloud save failed'); });
-    } else {
-      toast('Saved to history');
-    }
+  function renderQueue() {
+    const recs = loadRecords();
+    const mount = $('#queueList');
+    const groups = ['withdrawal', 'acknowledgement', 'approval'];
+    const total = recs.filter(r => groups.includes(r.status || 'withdrawal')).length;
+    $('#queueEmpty').hidden = total !== 0;
+    mount.hidden = total === 0;
+    mount.innerHTML = '';
+    if (total === 0) return;
+    groups.forEach(st => {
+      const items = recs.filter(r => (r.status || 'withdrawal') === st);
+      const sec = document.createElement('div');
+      sec.className = 'queue-group';
+      sec.innerHTML = `<div class="queue-head">${STATUS_LABEL[st]} <span class="queue-count">${items.length}</span></div>`;
+      const list = document.createElement('div');
+      list.className = 'history-list';
+      if (!items.length) list.innerHTML = '<div class="queue-empty">None</div>';
+      else items.forEach(r => list.appendChild(queueCard(r)));
+      sec.appendChild(list);
+      mount.appendChild(sec);
+    });
   }
 
   /* ================================================================
@@ -731,7 +866,8 @@
           </div>
           <div class="hcard__meta">${escapeHtml(f.unit || '')}${f.unit && date ? ' · ' : ''}${escapeHtml(date)}${f.purpose ? ' · ' + escapeHtml(f.purpose) : ''}</div>
           <div class="hcard__tags">
-            ${f.txnType ? `<span class="tag tag--type">${escapeHtml(f.txnType)}</span>` : ''}
+            <span class="tag tag--type">${escapeHtml(STATUS_LABEL[r.status || 'withdrawal'] || '')}</span>
+            ${f.txnType ? `<span class="tag">${escapeHtml(f.txnType)}</span>` : ''}
             ${f.category ? `<span class="tag tag--cat">${escapeHtml(f.category)}</span>` : ''}
             ${(r.receipts || []).length ? `<span class="tag">📷 ${r.receipts.length}</span>` : ''}
           </div>
@@ -752,11 +888,8 @@
     if (!rec && act !== 'del') return;
     switch (act) {
       case 'open':
-        applyRecord(rec);
-        state.editingId = id;
-        formStage = 'details'; approvalsRevealed = true;
-        switchTab('form');
-        toast('Loaded for editing');
+      case 'stage':
+        openStage(id);
         break;
       case 'preview':
         applyRecord(rec);
@@ -766,9 +899,11 @@
       case 'dup': {
         applyRecord(rec);
         state.editingId = null;
-        formStage = 'details'; approvalsRevealed = true;
+        if (form.elements['status']) form.elements['status'].value = '';
+        formMode = 'create';
         switchTab('form');
-        toast('Duplicated — save to keep');
+        showDetails();
+        toast('Duplicated — submit to keep');
         break;
       }
       case 'del':
@@ -791,18 +926,19 @@
   function switchTab(tab) {
     currentTab = tab;
     $('#viewForm').hidden = tab !== 'form';
+    $('#viewQueue').hidden = tab !== 'queue';
     $('#viewHistory').hidden = tab !== 'history';
     $('#viewPreview').hidden = true;
-    $('#formActions').hidden = tab !== 'form';
     $('#previewActions').hidden = true;
     $('#tabbar').hidden = false;
     $('#btnBack').hidden = true;
     $('#btnNew').hidden = false;
     $('#btnShare').hidden = true;   // shown again by the form stage if applicable
     $$('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === tab));
-    $('#topbarTitle').textContent = tab === 'history' ? 'History' : 'Payment Approval';
+    $('#topbarTitle').textContent = tab === 'history' ? 'History' : tab === 'queue' ? 'Queue' : 'Payment Approval';
     if (tab === 'form') applyFormStage();
     else $('#formActions').hidden = true;
+    if (tab === 'queue') renderQueue();
     if (tab === 'history') renderHistory($('#historySearch').value);
     window.scrollTo(0, 0);
   }
@@ -822,7 +958,7 @@
     window.scrollTo(0, 0);
   }
 
-  function backFromPreview() { switchTab(currentTab === 'history' ? 'form' : currentTab); }
+  function backFromPreview() { switchTab(currentTab); }
 
   /* ================================================================
      Preview / printable PAF replica
@@ -907,11 +1043,15 @@
     o += S('approver2', 820, 600, 170, 44);
     o += T(1050, 624, fmtDate(f.approver2Date));
 
-    // --- reimbursement ---
+    // --- reimbursement / generic acknowledgement (uses the reimbursement line) ---
     if (f.txnType === 'Reimbursement') {
       o += T(48, 706, f.reimburseName, { sm: true, w: 330 });
       o += S('reimburse', 45, 720, 340, 22);
       o += T(615, 695, fmtDate(f.reimburseDate));
+    } else if (rec.signatures && rec.signatures.acknowledge) {
+      o += T(48, 706, f.ackName, { sm: true, w: 330 });
+      o += S('acknowledge', 45, 720, 340, 22);
+      o += T(615, 695, fmtDate(f.ackDate));
     }
 
     // --- cash advance ---
@@ -1050,7 +1190,9 @@
       if (data && data.fields) {
         applyRecord({ fields: data.fields, signatures: data.signatures || {}, receipts: data.receipts || [] });
         state.editingId = null;
-        approvalsRevealed = hasApprovalData();
+        const st = data.fields.status;
+        formMode = (st && st !== 'create') ? st : 'create';
+        if (form.elements['status']) form.elements['status'].value = st || '';
         history.replaceState(null, '', location.pathname + location.search);  // don't re-import on refresh
         toast('Shared transaction loaded');
         return true;
@@ -1088,7 +1230,7 @@
     form.addEventListener('input', (e) => {
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
       if (e.target.name === 'caReceived' || e.target.name === 'caSpent') computeExcess();
-      if (e.target.name === 'payee' && approvalsRevealed) updateApproverButtons();
+      if (e.target.name === 'payee' && formMode === 'approval') updateApproverButtons();
       saveDraft();
     });
     form.addEventListener('change', (e) => {
@@ -1096,7 +1238,7 @@
         updateConditionals();
         renderSummary();
         // auto-advance single-choice questions; foType is multi-select (needs Continue)
-        if (formStage === 'wizard' && e.target.name !== 'foType') {
+        if (formMode === 'wizard' && e.target.name !== 'foType') {
           clearTimeout(advanceTimer);
           advanceTimer = setTimeout(resumeStage, 260);
         }
@@ -1121,9 +1263,11 @@
         if (i >= 0) showWizardStep(i);
       }
     });
-    // Submit request -> reveal the approvals section
+    // Submit (create) + stage transition buttons
     $('#btnSubmitRequest').addEventListener('click', submitRequest);
-    $('#btnSubmitInline').addEventListener('click', submitRequest);
+    $('#btnMarkWithdrawn').addEventListener('click', markWithdrawn);
+    $('#btnConfirmAck').addEventListener('click', confirmAck);
+    $('#btnMarkApproved').addEventListener('click', markApproved);
 
     // Approver buttons -> choose (if needed) then sign
     $('#btnApprover1').addEventListener('click', () => startApprover(1));
@@ -1195,6 +1339,7 @@
       }
       renderSignatures();
       updateApproverButtons();
+      renderStageActions();
       saveDraft();
       closeSigModal();
     });
@@ -1212,9 +1357,8 @@
     });
 
     // action bar
-    $('#btnSave').addEventListener('click', saveRecord);
     $('#btnPreview').addEventListener('click', showPreview);
-    $('#btnClear').addEventListener('click', () => { if (confirm('Start a new form?')) { newForm(); switchTab('form'); } });
+    $('#btnClear').addEventListener('click', () => { if (confirm('Start a new request?')) { newForm(); switchTab('form'); } });
     $('#btnPrint').addEventListener('click', doPrint);
     $('#btnPng').addEventListener('click', doPng);
     $('#btnEditFromPreview').addEventListener('click', backFromPreview);
@@ -1225,6 +1369,13 @@
     // tabs
     $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
     $('#btnEmptyNew').addEventListener('click', () => { newForm(); switchTab('form'); });
+    $('#btnQueueNew').addEventListener('click', () => { newForm(); switchTab('form'); });
+
+    // queue
+    $('#queueList').addEventListener('click', (e) => {
+      const card = e.target.closest('[data-act]');
+      if (card) openStage(card.dataset.id);
+    });
 
     // history
     $('#historySearch').addEventListener('input', (e) => renderHistory(e.target.value));
@@ -1261,9 +1412,8 @@
   function init() {
     bind();
     updateConditionals();
-    // A shared link takes precedence over any local draft
-    if (importFromHash()) { formStage = 'details'; }
-    else loadDraft();
+    // A shared link takes precedence over any local draft (sets formMode itself)
+    if (!importFromHash()) loadDraft();
     switchTab('form');
     setupCloud();
   }
