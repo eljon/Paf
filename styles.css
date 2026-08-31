@@ -271,6 +271,67 @@ textarea{resize:vertical;min-height:44px;}
 
 .form-spacer{height:8px;}
 
+/* =========================================================
+   WIZARD — auto-advancing multiple-choice questions
+   ========================================================= */
+.wiz-head{display:flex;align-items:center;gap:10px;min-height:34px;margin-bottom:16px;}
+.wiz-back{
+  background:#eef1f5;border:0;color:var(--navy);font-weight:600;font-size:14px;
+  padding:7px 12px;border-radius:9px;
+}
+.wiz-back:active{background:#e2e7ef;}
+.wiz-progress{display:flex;gap:6px;margin-left:auto;}
+.wiz-dot{width:8px;height:8px;border-radius:50%;background:var(--line-2);transition:.2s;}
+.wiz-dot.is-done{background:var(--accent);}
+.wiz-dot.is-active{background:var(--navy);transform:scale(1.35);}
+
+.wiz-step{animation:wizIn .22s ease;}
+@keyframes wizIn{from{opacity:0;transform:translateX(14px);}to{opacity:1;transform:translateX(0);}}
+.wiz-q{
+  font-size:22px;font-weight:800;color:var(--navy);line-height:1.25;
+  margin:6px 2px 20px;
+}
+.opts{display:flex;flex-direction:column;gap:12px;}
+.opts--grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.opt{position:relative;display:block;}
+.opt input{position:absolute;opacity:0;pointer-events:none;}
+.opt__box{
+  display:block;padding:18px 18px;border:2px solid var(--line);border-radius:14px;
+  background:#fff;box-shadow:var(--shadow);transition:.15s;
+}
+.opt__box b{display:block;font-size:17px;font-weight:700;color:var(--text);}
+.opt__box small{display:block;margin-top:3px;font-size:13px;color:var(--muted);font-weight:400;}
+.opts--grid .opt__box{text-align:center;padding:22px 8px;}
+.opts--grid .opt__box b{font-size:16px;}
+.opt:active .opt__box{transform:scale(.98);}
+.opt input:checked + .opt__box{
+  border-color:var(--accent);background:#f2faf5;
+  box-shadow:0 0 0 3px rgba(46,125,91,.15);
+}
+.opt input:focus-visible + .opt__box{border-color:var(--navy);}
+
+/* ---------- Summary chips (chosen answers) ---------- */
+.summary{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;}
+.summary:empty{display:none;}
+.sum-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  background:#e7edf6;color:var(--navy);font-weight:700;font-size:12.5px;
+  padding:7px 12px;border-radius:999px;border:0;
+}
+.sum-chip::after{content:"✎";font-size:11px;opacity:.6;}
+.sum-chip:active{background:#dbe3ef;}
+
+/* ---------- Request / Approval sub-tabs ---------- */
+.subtabs{
+  display:flex;gap:6px;background:#eef1f5;border-radius:12px;padding:5px;
+  position:sticky;top:calc(var(--topbar-h));z-index:15;margin-bottom:14px;
+}
+.subtab{
+  flex:1;background:transparent;border:0;padding:11px 6px;border-radius:9px;
+  font-size:14px;font-weight:700;color:var(--muted);transition:.15s;
+}
+.subtab.is-active{background:#fff;color:var(--navy);box-shadow:var(--shadow);}
+
 /* ---------- Unit badge (auto-filled ward) ---------- */
 .unit-badge{
   display:inline-flex;align-items:center;gap:6px;

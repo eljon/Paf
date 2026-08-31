@@ -112,6 +112,105 @@
   }
 
   /* ================================================================
+     Wizard (auto-advancing questions) + Request/Approval tabs
+     ================================================================ */
+  let formStage = 'wizard';   // 'wizard' | 'details'
+  let wizIndex = 0;
+  let subTab = 'request';     // 'request' | 'approve'
+  let advanceTimer;
+
+  function radioVal(name) {
+    const el = form.elements[name];
+    return el ? el.value : '';
+  }
+  function shortFO(v) { return v === 'Short-Term Shelter (Housing)' ? 'Housing' : v; }
+
+  // Ordered list of visible questions (foType only for Fast Offering)
+  function wizQuestions() {
+    const qs = ['txnType', 'category'];
+    if (radioVal('category') === 'Fast Offering') qs.push('foType');
+    return qs;
+  }
+
+  function renderWizProgress(activeIdx) {
+    const total = wizQuestions().length + 1; // + details step
+    const prog = $('#wizProgress');
+    prog.innerHTML = '';
+    for (let i = 0; i < total; i++) {
+      const d = document.createElement('span');
+      d.className = 'wiz-dot' + (i < activeIdx ? ' is-done' : '') + (i === activeIdx ? ' is-active' : '');
+      prog.appendChild(d);
+    }
+  }
+
+  function showWizardStep(idx) {
+    const qs = wizQuestions();
+    idx = Math.max(0, Math.min(idx, qs.length - 1));
+    formStage = 'wizard';
+    wizIndex = idx;
+    $('#wizard').hidden = false;
+    $('#detailsStep').hidden = true;
+    $$('.wiz-step').forEach(s => { s.hidden = s.dataset.q !== qs[idx]; });
+    $('#wizBack').hidden = idx === 0;
+    renderWizProgress(idx);
+    $('#formActions').hidden = true;
+    window.scrollTo(0, 0);
+  }
+
+  function showDetails(which) {
+    formStage = 'details';
+    $('#wizard').hidden = true;
+    $('#detailsStep').hidden = false;
+    renderWizProgress(wizQuestions().length);
+    renderSummary();
+    setSubTab(which || subTab || 'request');
+    $('#formActions').hidden = currentTab !== 'form';
+    window.scrollTo(0, 0);
+  }
+
+  function setSubTab(which) {
+    subTab = which;
+    $$('.subtab').forEach(t => t.classList.toggle('is-active', t.dataset.sub === which));
+    $$('.subpanel').forEach(p => { p.hidden = p.dataset.panel !== which; });
+  }
+
+  function renderSummary() {
+    const sum = $('#summary');
+    if (!sum) return;
+    sum.innerHTML = '';
+    wizQuestions().forEach(q => {
+      const v = radioVal(q);
+      if (!v) return;
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sum-chip';
+      b.dataset.q = q;
+      b.textContent = q === 'foType' ? shortFO(v) : v;
+      sum.appendChild(b);
+    });
+  }
+
+  // After answering a question, land on the next unanswered one, or details.
+  function resumeStage() {
+    const qs = wizQuestions();
+    const firstUnanswered = qs.findIndex(q => !radioVal(q));
+    if (firstUnanswered === -1) showDetails(subTab);
+    else showWizardStep(firstUnanswered);
+  }
+
+  function applyFormStage() {
+    if (formStage === 'details') showDetails(subTab);
+    else showWizardStep(wizIndex);
+  }
+
+  function newForm() {
+    resetForm(false);
+    subTab = 'request';
+    renderSummary();
+    showWizardStep(0);
+  }
+
+  /* ================================================================
      Signature pads
      ================================================================ */
   function initSigPads() {
@@ -331,6 +430,7 @@
                 (d.receipts || []).length || Object.keys(d.signatures || {}).length)) {
         applyRecord(d);
         state.editingId = d.editingId || null;
+        resumeStage();   // land on the right question / details tab
       }
     } catch {}
   }
@@ -340,9 +440,7 @@
      Reset / new
      ================================================================ */
   function resetForm(toastMsg = true) {
-    form.reset();
-    setRadio('txnType', 'Reimbursement');
-    setRadio('category', 'Budget');
+    form.reset();                 // no radio defaults — the wizard requires a choice
     state.signatures = {};
     state.receipts = [];
     state.editingId = null;
@@ -443,6 +541,7 @@
       case 'open':
         applyRecord(rec);
         state.editingId = id;
+        formStage = 'details'; subTab = 'request';
         switchTab('form');
         toast('Loaded for editing');
         break;
@@ -454,6 +553,7 @@
       case 'dup': {
         applyRecord(rec);
         state.editingId = null;
+        formStage = 'details'; subTab = 'request';
         switchTab('form');
         toast('Duplicated — save to keep');
         break;
@@ -484,6 +584,8 @@
     $('#btnNew').hidden = false;
     $$('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === tab));
     $('#topbarTitle').textContent = tab === 'history' ? 'History' : 'Payment Approval';
+    if (tab === 'form') applyFormStage();
+    else $('#formActions').hidden = true;
     if (tab === 'history') renderHistory($('#historySearch').value);
     window.scrollTo(0, 0);
   }
@@ -704,6 +806,7 @@
      Wire up events
      ================================================================ */
   function bind() {
+    const WIZ_NAMES = ['txnType', 'category', 'foType'];
     // form input -> conditionals, draft, excess
     form.addEventListener('input', (e) => {
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
@@ -711,9 +814,30 @@
       saveDraft();
     });
     form.addEventListener('change', (e) => {
-      if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
+      if (WIZ_NAMES.includes(e.target.name)) {
+        updateConditionals();
+        renderSummary();
+        // auto-advance to the next question (or the details step)
+        if (formStage === 'wizard') {
+          clearTimeout(advanceTimer);
+          advanceTimer = setTimeout(resumeStage, 260);
+        }
+      }
       saveDraft();
     });
+
+    // wizard back + summary chips + request/approval sub-tabs
+    $('#wizBack').addEventListener('click', () => {
+      if (wizIndex > 0) showWizardStep(wizIndex - 1);
+    });
+    $('#summary').addEventListener('click', (e) => {
+      const chip = e.target.closest('.sum-chip');
+      if (chip) {
+        const i = wizQuestions().indexOf(chip.dataset.q);
+        if (i >= 0) showWizardStep(i);
+      }
+    });
+    $$('.subtab').forEach(t => t.addEventListener('click', () => setSubTab(t.dataset.sub)));
 
     // signature pads
     initSigPads();
@@ -759,16 +883,16 @@
     // action bar
     $('#btnSave').addEventListener('click', saveRecord);
     $('#btnPreview').addEventListener('click', showPreview);
-    $('#btnClear').addEventListener('click', () => { if (confirm('Clear the form?')) resetForm(); });
+    $('#btnClear').addEventListener('click', () => { if (confirm('Start a new form?')) { newForm(); switchTab('form'); } });
     $('#btnPrint').addEventListener('click', doPrint);
     $('#btnPng').addEventListener('click', doPng);
     $('#btnEditFromPreview').addEventListener('click', backFromPreview);
     $('#btnBack').addEventListener('click', backFromPreview);
-    $('#btnNew').addEventListener('click', () => { resetForm(); switchTab('form'); });
+    $('#btnNew').addEventListener('click', () => { newForm(); switchTab('form'); });
 
     // tabs
     $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
-    $('#btnEmptyNew').addEventListener('click', () => { resetForm(); switchTab('form'); });
+    $('#btnEmptyNew').addEventListener('click', () => { newForm(); switchTab('form'); });
 
     // history
     $('#historySearch').addEventListener('input', (e) => renderHistory(e.target.value));
