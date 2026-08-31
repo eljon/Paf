@@ -38,7 +38,8 @@
     withdrawal:      'For Withdrawal',
     acknowledgement: 'For Acknowledgement',
     approval:        'For Approval',
-    done:            'Approved',
+    recording:       'For Recording',
+    done:            'Recorded',
   };
 
   /* ---------- App state ---------- */
@@ -171,7 +172,7 @@
   let formMode = 'wizard';
   let wizIndex = 0;
   let advanceTimer;
-  const isStage = () => ['withdrawal', 'acknowledgement', 'approval', 'done'].includes(formMode);
+  const isStage = () => ['withdrawal', 'acknowledgement', 'approval', 'recording', 'done'].includes(formMode);
 
   /* Approver roster */
   const BISHOP = 'Eljon Serrano';
@@ -261,7 +262,7 @@
   // Which action-bar buttons show for the current mode.
   function renderStageActions() {
     ['#btnSubmitRequest', '#btnClear', '#btnPreview',
-     '#btnMarkWithdrawn', '#btnConfirmAck', '#btnMarkApproved']
+     '#btnMarkWithdrawn', '#btnConfirmAck', '#btnMarkApproved', '#btnMarkRecorded']
       .forEach(id => { $(id).hidden = true; });
     if (currentTab !== 'form') { $('#formActions').hidden = true; return; }
     $('#formActions').hidden = false;
@@ -283,6 +284,10 @@
         $('#btnPreview').hidden = false;
         $('#btnMarkApproved').hidden = false;
         $('#btnMarkApproved').disabled = !bothApproversSigned();
+        break;
+      case 'recording':
+        $('#btnPreview').hidden = false;
+        $('#btnMarkRecorded').hidden = false;
         break;
       default: // done
         $('#btnPreview').hidden = false;
@@ -416,8 +421,9 @@
   }
   function markApproved() {
     if (!bothApproversSigned()) { toast('Both approvers must sign'); return; }
-    advanceStage('done', 'Approved');
+    advanceStage('recording', 'Approved — for recording');
   }
+  function markRecorded() { advanceStage('done', 'Recorded'); }
 
   // Open a record at its current workflow stage.
   function openStage(id) {
@@ -809,7 +815,7 @@
   function renderQueue() {
     const recs = loadRecords();
     const mount = $('#queueList');
-    const groups = ['withdrawal', 'acknowledgement', 'approval'];
+    const groups = ['withdrawal', 'acknowledgement', 'approval', 'recording'];
     const total = recs.filter(r => groups.includes(r.status || 'withdrawal')).length;
     $('#queueEmpty').hidden = total !== 0;
     mount.hidden = total === 0;
@@ -1273,6 +1279,7 @@
     $('#btnMarkWithdrawn').addEventListener('click', markWithdrawn);
     $('#btnConfirmAck').addEventListener('click', confirmAck);
     $('#btnMarkApproved').addEventListener('click', markApproved);
+    $('#btnMarkRecorded').addEventListener('click', markRecorded);
 
     // Approver buttons -> choose (if needed) then sign
     $('#btnApprover1').addEventListener('click', () => startApprover(1));
