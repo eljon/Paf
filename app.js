@@ -615,7 +615,7 @@
   /* Overlay coordinate system — base is the form image: 1260 × 1100 px.
      Positions below are in those pixels; converted to % so the overlay
      scales to any width (screen, print, PNG). */
-  const BW = 1260, BH = 1100;
+  const BW = 1260, BH = 1570;
   const px = n => (n / BW * 100);
   const py = n => (n / BH * 100);
 
@@ -707,19 +707,7 @@
       o += T(1018, 946, money(f.caExcess), { bold: true });
     }
 
-    // --- clerk reference (YYYYMMDD split into boxes) + amount + seq ---
-    const ref = (f.refNumber || '').trim();
-    const dash = ref.indexOf('-');
-    const datePart = (dash >= 0 ? ref.slice(0, dash) : ref).replace(/\D/g, '');
-    const amtPart = dash >= 0 ? ref.slice(dash + 1).trim() : '';
-    const boxX = [617, 640, 663, 686, 742, 765, 828, 852];
-    if (datePart.length >= 8) {
-      for (let i = 0; i < 8; i++) o += T(boxX[i], 1042, datePart[i], { bold: true, center: true });
-    } else {
-      o += T(605, 1046, ref);
-    }
-    o += T(900, 1044, amtPart, { sm: true });
-    o += T(1072, 1044, f.seq, { bold: true });
+    // (Clerk-use-only boxes are left blank — filled in by the clerk.)
 
     const receipts = (rec.receipts || []).map((src, i) =>
       `<figure class="pf-receipt"><img src="${src}" alt="receipt ${i + 1}"><figcaption>Receipt ${i + 1}</figcaption></figure>`
@@ -793,13 +781,6 @@
     t.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.hidden = true; }, 2200);
-  }
-
-  function genRef() {
-    const d = (form.elements['activityDate'].value || todayISO()).replace(/-/g, '');
-    const amt = form.elements['amount'].value ? Math.round(parseFloat(form.elements['amount'].value)) : '';
-    form.elements['refNumber'].value = amt ? `${d}-${amt}` : d;
-    saveDraft();
   }
 
   /* ================================================================
@@ -876,9 +857,6 @@
         saveDraft();
       }
     });
-
-    // clerk auto ref
-    $('#btnGenRef').addEventListener('click', genRef);
 
     // action bar
     $('#btnSave').addEventListener('click', saveRecord);
