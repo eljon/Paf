@@ -220,6 +220,7 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 }
 .wiz-sub{font-size:15px;color:var(--label-2);margin:0 2px 20px;}
 .wiz-continue{width:100%;margin-top:22px;}
+.submit-inline{width:100%;margin-bottom:16px;}
 .opts{display:flex;flex-direction:column;gap:12px;}
 .opts--grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .opt{position:relative;display:block;}

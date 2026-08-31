@@ -215,8 +215,7 @@
     renderWizProgress(wizQuestions().length);
     renderSummary();
     refreshCalendar();
-    applyDetailsUI();
-    $('#formActions').hidden = currentTab !== 'form';
+    applyDetailsUI();   // owns #formActions visibility
     $('#btnShare').hidden = currentTab !== 'form';
     window.scrollTo(0, 0);
   }
@@ -289,10 +288,19 @@
   function applyDetailsUI() {
     $('#approvalsSection').hidden = !approvalsRevealed;
     updateApproverButtons();
-    $('#btnSubmitRequest').hidden = approvalsRevealed;   // request-only Submit
-    $('#btnClear').hidden = !approvalsRevealed;
-    $('#btnSave').hidden = !approvalsRevealed;
-    $('#btnPreview').hidden = !approvalsRevealed;
+    // Cash Advance / Reimbursement submit inline (right after the requestor);
+    // other types submit from the bottom action bar.
+    const t = radioVal('txnType');
+    const inlineType = (t === 'Cash Advance' || t === 'Reimbursement');
+    const beforeApproval = !approvalsRevealed;
+    $('#btnSubmitInline').hidden = !(beforeApproval && inlineType);
+    $('#btnSubmitRequest').hidden = !(beforeApproval && !inlineType);
+    $('#btnClear').hidden = beforeApproval;
+    $('#btnSave').hidden = beforeApproval;
+    $('#btnPreview').hidden = beforeApproval;
+    // Hide the bottom bar entirely when it has no visible buttons.
+    const bottomHasButtons = approvalsRevealed || !inlineType;
+    $('#formActions').hidden = (currentTab !== 'form') || !bottomHasButtons;
   }
 
   function submitRequest() {
@@ -1115,6 +1123,7 @@
     });
     // Submit request -> reveal the approvals section
     $('#btnSubmitRequest').addEventListener('click', submitRequest);
+    $('#btnSubmitInline').addEventListener('click', submitRequest);
 
     // Approver buttons -> choose (if needed) then sign
     $('#btnApprover1').addEventListener('click', () => startApprover(1));
