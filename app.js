@@ -192,6 +192,15 @@
     window.scrollTo(0, 0);
   }
 
+  // Pop the calendar open for a fresh (empty) activity date.
+  function autoOpenActivityDate() {
+    const el = form.elements['activityDate'];
+    if (!el || el.value) return;
+    requestAnimationFrame(() => {
+      try { el.focus({ preventScroll: true }); if (el.showPicker) el.showPicker(); } catch {}
+    });
+  }
+
   // Toggle the approvals section + which action-bar buttons are shown.
   function applyDetailsUI() {
     $('#approvalsSection').hidden = !approvalsRevealed;
@@ -911,7 +920,12 @@
         // auto-advance to the next question (or the details step)
         if (formStage === 'wizard') {
           clearTimeout(advanceTimer);
-          advanceTimer = setTimeout(resumeStage, 260);
+          advanceTimer = setTimeout(() => {
+            const wasWizard = formStage === 'wizard';
+            resumeStage();
+            // Landing on details from the last question → pop the calendar open.
+            if (wasWizard && formStage === 'details') autoOpenActivityDate();
+          }, 260);
         }
       }
       saveDraft();
@@ -943,9 +957,7 @@
 
     // Date fields: open the calendar picker on tap
     $$('input[type="date"]').forEach(el => {
-      const open = () => { try { el.showPicker && el.showPicker(); } catch {} };
-      el.addEventListener('click', open);
-      el.addEventListener('focus', open);
+      el.addEventListener('click', () => { try { el.showPicker && el.showPicker(); } catch {} });
     });
 
     // signature pads
