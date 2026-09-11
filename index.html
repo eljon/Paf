@@ -69,6 +69,8 @@
         <!-- ===== DETAILS: request / acknowledgement / approval ===== -->
         <div id="detailsStep" hidden>
           <input type="hidden" id="status" name="status" />
+          <input type="hidden" id="txnNo" name="txnNo" />
+          <input type="hidden" id="txnSeq" name="txnSeq" />
           <div class="summary" id="summary"></div>
           <div class="stage-summary" id="stageSummary" hidden></div>
 
@@ -279,13 +281,13 @@
     <!-- ============ HISTORY VIEW ============ -->
     <main class="view view--history" id="viewHistory" hidden>
       <div class="history-head">
-        <input type="search" id="historySearch" class="history-search" placeholder="Search payee, unit, purpose…" />
+        <input type="search" id="historySearch" class="history-search" placeholder="Search number, payee, purpose…" />
       </div>
       <div id="historyList" class="history-list"></div>
       <div class="empty" id="historyEmpty" hidden>
         <div class="empty__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
-        <p>No saved forms yet.</p>
-        <button class="btn" id="btnEmptyNew">Create your first form</button>
+        <p>No completed transactions yet.</p>
+        <button class="btn" id="btnEmptyNew">Create a request</button>
       </div>
     </main>
 
@@ -319,8 +321,8 @@
     <!-- ============ PREVIEW ACTION BAR ============ -->
     <div class="actionbar" id="previewActions" hidden>
       <button class="btn btn--ghost" id="btnEditFromPreview" type="button">Edit</button>
-      <button class="btn btn--primary" id="btnPrint" type="button">Print / PDF</button>
-      <button class="btn btn--accent" id="btnPng" type="button">PNG</button>
+      <button class="btn btn--primary" id="btnPrint" type="button">Open PDF</button>
+      <button class="btn btn--accent" id="btnPng" type="button">Save image</button>
     </div>
   </div>
 
@@ -349,6 +351,23 @@
         <button class="modal__x" data-close aria-label="Close">✕</button>
       </div>
       <div class="choice-list" id="choiceList"></div>
+    </div>
+  </div>
+
+  <!-- Document viewer modal -->
+  <div class="modal" id="docModal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__sheet modal__sheet--doc">
+      <div class="modal__head">
+        <strong id="docModalTitle">Document</strong>
+        <button class="modal__x" data-close aria-label="Close">✕</button>
+      </div>
+      <div class="doc-view" id="docView"></div>
+      <div class="modal__foot">
+        <button class="btn btn--ghost" id="docPrev" type="button">‹ Prev</button>
+        <button class="btn btn--accent" id="docSave" type="button">Save to gallery</button>
+        <button class="btn btn--ghost" id="docNext" type="button">Next ›</button>
+      </div>
     </div>
   </div>
 

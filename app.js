@@ -350,7 +350,7 @@
          </div>`
       : (amt ? `<span class="stage-summary__amount">${amt}</span>` : '');
     el.innerHTML =
-      `<span class="stage-summary__status">${STATUS_LABEL[form.elements['status'].value] || ''}</span>
+      `<span class="stage-summary__status">${STATUS_LABEL[form.elements['status'].value] || ''}${f.txnNo ? ' · ' + escapeHtml(f.txnNo) : ''}</span>
        ${amountEditable() ? '' : amountHtml}
        <div class="stage-summary__payee">${escapeHtml(f.payee || 'Untitled')}</div>
        <div class="stage-summary__meta">${escapeHtml(meta)}</div>
@@ -424,6 +424,25 @@
 
   /* ---------- Persist + workflow transitions ---------- */
   function genId() { return 'rec_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+  // Next sequential transaction number across all known records.
+  function nextTxnSeq() {
+    const max = loadRecords().reduce((m, r) => {
+      const n = parseInt(r.fields && r.fields.txnSeq, 10);
+      return n > m ? n : m;
+    }, 0);
+    return max + 1;
+  }
+  function formatTxnNo(seq) { return 'PAF-' + String(seq).padStart(4, '0'); }
+
+  // Assign a transaction number to the form the first time it's submitted.
+  function ensureTxnNo() {
+    if (form.elements['txnNo'] && !form.elements['txnNo'].value) {
+      const seq = nextTxnSeq();
+      form.elements['txnSeq'].value = String(seq);
+      form.elements['txnNo'].value = formatTxnNo(seq);
+    }
+  }
 
   // Build the current record, save to the local cache (+ cloud), return it.
   function persist(status) {
@@ -504,6 +523,7 @@
   // Create → submit a new request (enters the "For Withdrawal" queue).
   function submitRequest() {
     if (!validateStage()) return;
+    ensureTxnNo();
     persist('withdrawal');
     toast('Sent for withdrawal');
     newForm();
@@ -963,13 +983,14 @@
      History view
      ================================================================ */
   function renderHistory(filter = '') {
-    const recs = loadRecords();
+    // History holds only completed (recorded) transactions.
+    const recs = loadRecords().filter(r => (r.status || 'withdrawal') === 'done');
     const list = $('#historyList');
     const empty = $('#historyEmpty');
     const q = filter.trim().toLowerCase();
     const filtered = q ? recs.filter(r => {
       const f = r.fields || {};
-      return [f.payee, f.unit, f.purpose, f.txnType, f.category]
+      return [f.txnNo, f.payee, f.unit, f.purpose, f.txnType, f.category]
         .filter(Boolean).join(' ').toLowerCase().includes(q);
     }) : recs;
 
@@ -986,6 +1007,12 @@
       const f = r.fields || {};
       const amt = f.amount ? '₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—';
       const date = f.activityDate || (r.createdAt ? r.createdAt.slice(0, 10) : '');
+      const docs = (r.receipts || []);
+      const docThumbs = docs.length
+        ? `<div class="hcard__docs">${docs.map((src, i) =>
+            `<button type="button" class="hdoc" data-act="doc" data-id="${r.id}" data-i="${i}"><img src="${src}" alt="Document ${i + 1}"></button>`
+          ).join('')}</div>`
+        : '';
       const card = document.createElement('div');
       card.className = 'hcard';
       card.innerHTML = `
@@ -994,13 +1021,15 @@
             <span class="hcard__payee">${escapeHtml(f.payee || 'Untitled')}</span>
             <span class="hcard__amount">${amt}</span>
           </div>
+          ${f.txnNo ? `<div class="hcard__txnno">${escapeHtml(f.txnNo)}</div>` : ''}
           <div class="hcard__meta">${escapeHtml(f.unit || '')}${f.unit && date ? ' · ' : ''}${escapeHtml(date)}${f.purpose ? ' · ' + escapeHtml(f.purpose) : ''}</div>
           <div class="hcard__tags">
             <span class="tag tag--type">${escapeHtml(STATUS_LABEL[r.status || 'withdrawal'] || '')}</span>
             ${f.txnType ? `<span class="tag">${escapeHtml(f.txnType)}</span>` : ''}
             ${f.category ? `<span class="tag tag--cat">${escapeHtml(f.category)}</span>` : ''}
-            ${(r.receipts || []).length ? `<span class="tag"><svg class="tag__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> ${r.receipts.length}</span>` : ''}
+            ${docs.length ? `<span class="tag"><svg class="tag__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> ${docs.length}</span>` : ''}
           </div>
+          ${docThumbs}
           <div class="hcard__actions">
             <button class="linkbtn" data-act="open" data-id="${r.id}">Open</button>
             <button class="linkbtn" data-act="preview" data-id="${r.id}">Preview</button>
@@ -1012,7 +1041,7 @@
     });
   }
 
-  function historyAction(act, id) {
+  function historyAction(act, id, idx) {
     const recs = loadRecords();
     const rec = recs.find(r => r.id === id);
     if (!rec && act !== 'del') return;
@@ -1020,6 +1049,9 @@
       case 'open':
       case 'stage':
         openStage(id);
+        break;
+      case 'doc':
+        openDocViewer(rec.receipts || [], parseInt(idx, 10) || 0);
         break;
       case 'preview':
         applyRecord(rec);
@@ -1030,6 +1062,8 @@
         applyRecord(rec);
         state.editingId = null;
         if (form.elements['status']) form.elements['status'].value = '';
+        if (form.elements['txnNo']) form.elements['txnNo'].value = '';
+        if (form.elements['txnSeq']) form.elements['txnSeq'].value = '';
         formMode = 'create';
         switchTab('form');
         showDetails();
@@ -1209,10 +1243,13 @@
       `<figure class="pf-receipt"><img src="${src}" alt="receipt ${i + 1}"><figcaption>Receipt ${i + 1}</figcaption></figure>`
     ).join('');
 
+    const txnTag = f.txnNo ? `<span class="pf-txnno">${escapeHtml(f.txnNo)}</span>` : '';
+
     return `
       <div class="paf-sheet" id="pafSheet">
         <div class="paf-fill">
           <img class="paf-bg" src="assets/paf-form.jpg" alt="Payment Approval Form" crossorigin="anonymous">
+          ${txnTag}
           ${o}
         </div>
       </div>
@@ -1222,14 +1259,97 @@
   /* ================================================================
      Export: Print + PNG
      ================================================================ */
-  function doPrint() { window.print(); }
-
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = src; s.onload = resolve; s.onerror = reject;
       document.head.appendChild(s);
     });
+  }
+
+  // Load an image (data: or remote URL) and return its dataURL + pixel size.
+  function imgToData(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        c.getContext('2d').drawImage(img, 0, 0);
+        let data = src;
+        try { data = c.toDataURL('image/jpeg', 0.92); } catch {}
+        resolve({ data, w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
+      };
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  // Save a blob to the device. Prefers the share sheet (so phones can save
+  // straight to the photo gallery); falls back to a file download.
+  async function shareOrDownloadBlob(blob, filename, okMsg) {
+    const type = blob.type || 'application/octet-stream';
+    try {
+      const file = new File([blob], filename, { type });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;   // user cancelled the sheet
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 8000);
+    if (okMsg) toast(okMsg);
+  }
+
+  // Fetch any image src into a blob and save it (to gallery where possible).
+  async function saveImageToGallery(src, filename) {
+    try {
+      const resp = await fetch(src);
+      const blob = await resp.blob();
+      await shareOrDownloadBlob(blob, filename, 'Saved');
+    } catch (e) {
+      toast('Could not save — long-press the image to save it');
+    }
+  }
+
+  // Open a rendered PDF of the current form (form sheet + one page per receipt).
+  async function doPdf() {
+    const sheet = $('#pafSheet .paf-fill');
+    if (!sheet) return;
+    toast('Building PDF…');
+    try {
+      if (!window.html2canvas) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      if (!window.jspdf) await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      const { jsPDF } = window.jspdf;
+      const scale = Math.max(1.5, (BW / (sheet.offsetWidth || BW)) * 1.4);
+      const canvas = await window.html2canvas(sheet, { scale, backgroundColor: '#fff', useCORS: true });
+      const pdf = new jsPDF({ orientation: canvas.width >= canvas.height ? 'l' : 'p', unit: 'pt', format: [canvas.width, canvas.height] });
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, canvas.width, canvas.height);
+      // supporting documents — one per page
+      const receipts = collect().receipts || [];
+      for (const src of receipts) {
+        try {
+          const im = await imgToData(src);
+          pdf.addPage([im.w, im.h], im.w >= im.h ? 'l' : 'p');
+          pdf.addImage(im.data, 'JPEG', 0, 0, im.w, im.h);
+        } catch {}
+      }
+      const f = collect().fields;
+      const name = ('PAF_' + (f.txnNo || f.payee || 'form')).replace(/[^a-z0-9_\-]+/gi, '_') + '.pdf';
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank');            // open the PDF itself
+      if (!win) await shareOrDownloadBlob(blob, name, 'PDF ready');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      toast('PDF needs internet — opening print instead');
+      window.print();
+    }
   }
 
   async function doPng() {
@@ -1244,19 +1364,39 @@
       const scale = Math.max(1.5, (BW / (sheet.offsetWidth || BW)) * 1.6);
       const canvas = await window.html2canvas(sheet, { scale, backgroundColor: '#fff', useCORS: true });
       const f = collect().fields;
-      const name = ('PAF_' + (f.payee || 'form') + '_' + (f.activityDate || todayISO()))
+      const name = ('PAF_' + (f.txnNo || f.payee || 'form') + '_' + (f.activityDate || todayISO()))
         .replace(/[^a-z0-9_\-]+/gi, '_');
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = name + '.png';
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 4000);
-        toast('PNG downloaded');
-      }, 'image/png');
+      canvas.toBlob(blob => { shareOrDownloadBlob(blob, name + '.png', 'Image saved'); }, 'image/png');
     } catch (e) {
-      toast('Image export needs internet — use Print / PDF');
+      toast('Image export needs internet — use Open PDF');
     }
+  }
+
+  /* ================================================================
+     Document viewer (History)
+     ================================================================ */
+  const docState = { list: [], idx: 0 };
+  function openDocViewer(list, idx) {
+    docState.list = list || [];
+    if (!docState.list.length) { toast('No documents attached'); return; }
+    docState.idx = Math.max(0, Math.min(idx || 0, docState.list.length - 1));
+    $('#docModal').hidden = false;
+    renderDocView();
+  }
+  function closeDocViewer() { $('#docModal').hidden = true; docState.list = []; }
+  function renderDocView() {
+    const src = docState.list[docState.idx];
+    $('#docView').innerHTML = src ? `<img src="${src}" alt="Document ${docState.idx + 1}">` : '';
+    $('#docModalTitle').textContent = `Document ${docState.idx + 1} of ${docState.list.length}`;
+    const multi = docState.list.length > 1;
+    $('#docPrev').hidden = !multi;
+    $('#docNext').hidden = !multi;
+    $('#docPrev').disabled = docState.idx === 0;
+    $('#docNext').disabled = docState.idx === docState.list.length - 1;
+  }
+  function saveCurrentDoc() {
+    const src = docState.list[docState.idx];
+    if (src) saveImageToGallery(src, `PAF_document_${docState.idx + 1}.jpg`);
   }
 
   /* ================================================================
@@ -1500,8 +1640,14 @@
     // action bar
     $('#btnPreview').addEventListener('click', showPreview);
     $('#btnClear').addEventListener('click', () => { if (confirm('Start a new request?')) { newForm(); switchTab('form'); } });
-    $('#btnPrint').addEventListener('click', doPrint);
+    $('#btnPrint').addEventListener('click', doPdf);
     $('#btnPng').addEventListener('click', doPng);
+
+    // document viewer (History)
+    $('#docSave').addEventListener('click', saveCurrentDoc);
+    $('#docPrev').addEventListener('click', () => { if (docState.idx > 0) { docState.idx--; renderDocView(); } });
+    $('#docNext').addEventListener('click', () => { if (docState.idx < docState.list.length - 1) { docState.idx++; renderDocView(); } });
+    $$('#docModal [data-close]').forEach(el => el.addEventListener('click', closeDocViewer));
     $('#btnEditFromPreview').addEventListener('click', backFromPreview);
     $('#btnBack').addEventListener('click', backFromPreview);
     $('#btnNew').addEventListener('click', () => { newForm(); switchTab('form'); });
@@ -1533,13 +1679,14 @@
     $('#historySearch').addEventListener('input', (e) => renderHistory(e.target.value));
     $('#historyList').addEventListener('click', (e) => {
       const btn = e.target.closest('[data-act]');
-      if (btn) historyAction(btn.dataset.act, btn.dataset.id);
+      if (btn) historyAction(btn.dataset.act, btn.dataset.id, btn.dataset.i);
     });
 
     // esc closes modal
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!sigModal.hidden) closeSigModal();
+      if (!$('#docModal').hidden) closeDocViewer();
       const cm = $('#choiceModal');
       if (!cm.hidden && cm._finish) cm._finish(null);
     });

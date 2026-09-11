@@ -17,13 +17,22 @@ fully offline with on-device storage (`localStorage`).
 - **Receipt / photo upload** — snap a receipt with the camera or pick from the
   gallery. Images are auto-compressed to keep storage light and attached to
   the form and its output.
-- **Transaction history** — every saved form is listed and searchable. Open to
-  edit, duplicate, preview, or delete.
+- **Transaction numbers** — every request is assigned a sequential number
+  (e.g. `PAF-0006`) that prints in the upper-right corner of the form and is
+  searchable in History.
+- **Workflow queue & history** — in-progress forms move through the queue
+  (For Withdrawal → Acknowledgement → Document Upload → Approval → Recording);
+  **History** lists only completed (recorded) transactions, searchable by
+  number, payee, or purpose. Uploaded documents can be viewed and saved from
+  History (via the share sheet, so phones can save straight to the gallery).
 - **Filled-out form output** — your entries are overlaid directly onto the
   **actual Payment Approval Form image** (checkmarks, text, signatures, and the
-  clerk boxes land in their real positions), not a re-drawn copy. Export to
-  **PDF** (via the browser's Print dialog → *Save as PDF*) or download a **PNG**
-  image.
+  clerk boxes land in their real positions), not a re-drawn copy. **Open PDF**
+  builds the form as a real PDF (with a page per receipt) and opens it, or
+  **Save image** exports a PNG.
+- **Required-field checks** — a form can't be submitted or advanced to the next
+  stage until that stage's required fields are filled; anything missing is
+  highlighted.
 - **Smart sections** — the Fast Offering, Reimbursement, and Cash Advance
   blocks appear only when relevant, and the excess-cash total is calculated
   automatically.
@@ -128,8 +137,9 @@ automatically.
 
 There is no server. Forms, signatures, and photos are stored only in your
 browser via `localStorage` and never leave your device. Clearing browser data
-removes saved forms. The only network request is an optional CDN fetch of
-`html2canvas` when you export a **PNG**; **Print / PDF** works fully offline.
+removes saved forms. The only network requests are optional CDN fetches of
+`html2canvas` (for **Save image**) and `jsPDF` (for **Open PDF**); the browser's
+own **Print** works fully offline.
 
 ## Tech
 
