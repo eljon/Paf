@@ -189,8 +189,9 @@
     ).join('');
   }
 
+  // Cash received equals the amount requested; excess = requested − spent.
   function computeExcess() {
-    const rec = parseFloat(form.elements['caReceived'].value) || 0;
+    const rec = parseFloat(form.elements['amount'].value) || 0;
     const spent = parseFloat(form.elements['caSpent'].value) || 0;
     const excess = Math.max(0, rec - spent);
     form.elements['caExcess'].value = (rec || spent) ? excess.toFixed(2) : '';
@@ -492,10 +493,8 @@
     } else if (formMode === 'acknowledgement') {
       const kind = ackKind().sig;
       if (kind === 'reimburse') need(filled(f.reimburseName), 'Recipient name', '#reimburseName');
-      else if (kind === 'caReceive') {
-        need(filled(f.caReceiveName), 'Recipient name', '#caReceiveName');
-        need(positive(f.caReceived), 'Amount received', 'input[name="caReceived"]');
-      } else if (kind === 'acknowledge') need(filled(f.ackName), 'Received by', '#ackName');
+      else if (kind === 'caReceive') need(filled(f.caReceiveName), 'Recipient name', '#caReceiveName');
+      else if (kind === 'acknowledge') need(filled(f.ackName), 'Received by', '#ackName');
       need(!!state.signatures[kind], 'Acknowledgement signature', `.sigpad[data-sig="${kind}"]`);
     } else if (formMode === 'documents') {
       need(state.receipts.length > 0, 'At least one document', '#receiptsCard');
@@ -1223,7 +1222,7 @@
       o += T(44, 822, f.caReceiveName, { sm: true, w: 300 });
       o += S('caReceive', 40, 836, 320, 20);
       o += T(470, 806, fmtDate(f.caReceiveDate), { sm: true });
-      o += T(1018, 822, money(f.caReceived), { bold: true });
+      o += T(1018, 822, money(f.amount), { bold: true });
       // excess-cash rows only when the transaction has excess cash
       if (f.withExcess === 'on') {
         o += T(44, 882, f.caReturnName, { sm: true, w: 300 });
@@ -1503,7 +1502,7 @@
     form.addEventListener('input', (e) => {
       if (e.target.classList) e.target.classList.remove('is-invalid');
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
-      if (e.target.name === 'caReceived' || e.target.name === 'caSpent') computeExcess();
+      if (e.target.name === 'amount' || e.target.name === 'caSpent') computeExcess();
       if (e.target.name === 'payee') { if (formMode === 'approval') updateApproverButtons(); syncRequestorSame(); }
       saveDraft();
     });

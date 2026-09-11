@@ -476,13 +476,37 @@ input.is-invalid,textarea.is-invalid{
 .modal__head strong{font-size:18px;font-weight:600;letter-spacing:-.02em;}
 .modal__x{background:var(--fill);border:0;width:30px;height:30px;border-radius:50%;font-size:14px;color:var(--label-2);display:flex;align-items:center;justify-content:center;}
 .modal__foot{display:flex;gap:10px;margin-top:14px;}
-.modal__sheet--doc{max-width:640px;}
+
+/* ---------- Full-screen document viewer ---------- */
+.docviewer{position:fixed;inset:0;z-index:70;background:#000;display:flex;align-items:center;justify-content:center;}
+.docviewer__backdrop{position:absolute;inset:0;}
 .doc-view{
-  background:#000;border-radius:var(--radius-ctrl);overflow:hidden;
-  display:flex;align-items:center;justify-content:center;
-  max-height:64vh;
+  position:relative;z-index:1;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;padding:16px;
 }
-.doc-view img{max-width:100%;max-height:64vh;object-fit:contain;display:block;}
+.doc-view img{max-width:100%;max-height:100%;object-fit:contain;display:block;}
+.docviewer__bar{
+  position:absolute;top:0;left:0;right:0;z-index:3;
+  display:flex;align-items:center;gap:10px;
+  padding:calc(env(safe-area-inset-top,0px) + 10px) 14px 10px;
+  background:linear-gradient(rgba(0,0,0,.55),transparent);
+}
+.docviewer__title{flex:1;color:#fff;font-size:15px;font-weight:600;}
+.docviewer__btn{
+  width:38px;height:38px;flex:none;border:0;border-radius:50%;
+  background:rgba(255,255,255,.16);color:#fff;
+  display:flex;align-items:center;justify-content:center;
+}
+.docviewer__btn:active{background:rgba(255,255,255,.28);}
+.docviewer__nav{
+  position:absolute;top:50%;transform:translateY(-50%);z-index:3;
+  width:44px;height:44px;border:0;border-radius:50%;
+  background:rgba(255,255,255,.16);color:#fff;font-size:28px;line-height:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.docviewer__nav--prev{left:12px;}
+.docviewer__nav--next{right:12px;}
+.docviewer__nav:disabled{opacity:.3;}
 .sig-canvas{
   width:100%;height:230px;border-radius:var(--radius-ctrl);
   background:#fff;touch-action:none;display:block;border:.5px solid var(--separator);
