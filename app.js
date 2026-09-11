@@ -880,7 +880,7 @@
             <span class="tag tag--type">${escapeHtml(STATUS_LABEL[r.status || 'withdrawal'] || '')}</span>
             ${f.txnType ? `<span class="tag">${escapeHtml(f.txnType)}</span>` : ''}
             ${f.category ? `<span class="tag tag--cat">${escapeHtml(f.category)}</span>` : ''}
-            ${(r.receipts || []).length ? `<span class="tag">📷 ${r.receipts.length}</span>` : ''}
+            ${(r.receipts || []).length ? `<span class="tag"><svg class="tag__ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> ${r.receipts.length}</span>` : ''}
           </div>
           <div class="hcard__actions">
             <button class="linkbtn" data-act="open" data-id="${r.id}">Open</button>

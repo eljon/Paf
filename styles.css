@@ -2,6 +2,7 @@
    Payment Approval Form — Apple / iOS-style UI
    ================================================================ */
 :root{
+  color-scheme:light;           /* always light — native controls stay light */
   /* Apple system palette (light) */
   --bg:#dfe2e9;                 /* grouped background (darkened for card contrast) */
   --card:#ffffff;               /* secondarySystemGroupedBackground */
@@ -42,30 +43,6 @@
 
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased;
-}
-
-@media (prefers-color-scheme:dark){
-  :root{
-    --bg:#000000;
-    --card:#1c1c1e;
-    --card-2:#2c2c2e;
-    --fill:rgba(118,118,128,.24);
-    --fill-strong:rgba(118,118,128,.36);
-    --separator:rgba(84,84,88,.65);
-    --separator-2:rgba(84,84,88,.4);
-    --label:#ffffff;
-    --label-2:#ebebf599;
-    --label-3:#ebebf54d;
-    --blue:#0a84ff;
-    --blue-press:#409cff;
-    --blue-tint:rgba(10,132,255,.22);
-    --green:#30d158;
-    --green-tint:rgba(48,209,88,.2);
-    --red:#ff453a;
-    --nav-bg:rgba(30,30,32,.72);
-    --accent-d:#30d158;
-    --shadow:0 1px 2px rgba(0,0,0,.3);
-  }
 }
 
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -305,7 +282,13 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
   color:var(--blue);font-size:15px;font-weight:500;position:relative;overflow:hidden;
   cursor:pointer;user-select:none;-webkit-user-select:none;transition:transform .12s;
 }
-.sigpad::after{content:"✍  Add signature";}
+.sigpad::before{
+  content:"";width:20px;height:20px;margin-right:8px;background:currentColor;
+  -webkit-mask:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 16c2 0 2-6 4-6s2 4 4 4 3-9 5-9 2 5 4 5'/><path d='M3 20h18'/></svg>") center/contain no-repeat;
+  mask:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 16c2 0 2-6 4-6s2 4 4 4 3-9 5-9 2 5 4 5'/><path d='M3 20h18'/></svg>") center/contain no-repeat;
+}
+.sigpad::after{content:"Add signature";}
+.sigpad.has-sig::before{display:none;}
 .sigpad:active{transform:scale(.99);opacity:.85;}
 .sigpad.has-sig{border-style:solid;border-color:var(--separator);background:var(--card);}
 .sigpad.has-sig::after{content:"";}
@@ -337,7 +320,8 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
   color:var(--blue);font-weight:500;font-size:15px;background:var(--fill);
 }
 .uploader:active{background:var(--fill-strong);}
-.uploader__icon{font-size:18px;}
+.uploader__icon{display:inline-flex;}
+.uploader__icon svg{width:20px;height:20px;}
 
 /* ---------- Tab bar ---------- */
 .tabbar{
@@ -355,9 +339,9 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
   font-size:10px;font-weight:500;
 }
-.tab__ico{font-size:22px;filter:grayscale(1);opacity:.55;}
+.tab__ico{display:flex;align-items:center;justify-content:center;}
+.tab__ico svg{width:24px;height:24px;}
 .tab.is-active{color:var(--blue);}
-.tab.is-active .tab__ico{filter:none;opacity:1;}
 
 /* ---------- Action bar (scrolls with content) ---------- */
 .actionbar{
@@ -435,7 +419,9 @@ textarea{resize:none;min-height:46px;line-height:1.4;}
 .stage-summary__purpose{font-size:14px;color:var(--label);margin-top:8px;}
 
 .empty{text-align:center;padding:64px 20px;color:var(--label-2);}
-.empty__icon{font-size:46px;margin-bottom:12px;}
+.empty__icon{margin-bottom:12px;display:flex;justify-content:center;}
+.empty__icon svg{width:46px;height:46px;color:var(--label-3);}
+.tag__ico{width:12px;height:12px;vertical-align:-2px;}
 .empty .btn{flex:0 0 auto;display:inline-block;margin-top:14px;padding:13px 24px;background:var(--blue);color:#fff;}
 
 /* ---------- Modals / sheets ---------- */
