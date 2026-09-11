@@ -117,7 +117,8 @@ input,textarea,select{font-family:inherit;}
 .view{
   padding:16px 16px 8px;
 }
-/* History has no in-flow action bar, so it clears the fixed tab bar itself */
+/* Queue and History have no in-flow action bar, so they clear the fixed tab bar */
+.view--queue,
 .view--history{padding-bottom:calc(var(--tabbar-h) + var(--safe-b) + 20px);}
 .view--preview{padding:0 0 8px;background:var(--bg);}
 

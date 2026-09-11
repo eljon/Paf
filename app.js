@@ -57,6 +57,7 @@
     { v: 8, notes: 'Version numbers with a /v<number> route and the current version shown at the bottom of History.' },
     { v: 9, notes: 'Pull down to refresh the Queue and History; live cloud updates now refresh the Queue too.' },
     { v: 10, notes: 'Action buttons keep their labels on a single line.' },
+    { v: 11, notes: 'Queue list clears the bottom tab bar so the last item is no longer hidden.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
