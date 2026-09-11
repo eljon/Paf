@@ -1681,6 +1681,19 @@
       if (btn) historyAction(btn.dataset.act, btn.dataset.id, btn.dataset.i);
     });
 
+    // Hide the fixed bottom tab bar while a text field is focused, so the
+    // keyboard doesn't push it up (it would otherwise float above the keyboard).
+    const KBD_SEL = 'input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=date]),textarea';
+    document.addEventListener('focusin', (e) => {
+      if (e.target.matches && e.target.matches(KBD_SEL)) document.body.classList.add('kbd-open');
+    });
+    document.addEventListener('focusout', () => {
+      setTimeout(() => {
+        const a = document.activeElement;
+        if (!a || !(a.matches && a.matches(KBD_SEL))) document.body.classList.remove('kbd-open');
+      }, 60);
+    });
+
     // esc closes modal
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;

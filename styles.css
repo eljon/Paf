@@ -87,6 +87,12 @@ input,textarea,select{font-family:inherit;}
 .topbar__action{font-size:26px;font-weight:300;}
 .topbar__back:active,.topbar__action:active{opacity:.4;}
 .topbar__icon{font-size:0;}
+/* text + icon action buttons */
+.topbar__btn{
+  gap:5px;padding:0 12px;font-size:16px;font-weight:590;
+  letter-spacing:-.01em;width:auto;
+}
+.topbar__btn svg{flex:none;}
 .topbar__icon svg{display:block;}
 
 /* ---------- Views ---------- */
@@ -360,6 +366,9 @@ input.is-invalid,textarea.is-invalid{
   border-top:0;
   display:flex;
 }
+/* Hide the bar while a text field is focused so it doesn't float up over the
+   on-screen keyboard — it stays pinned to the bottom otherwise. */
+body.kbd-open .tabbar{display:none;}
 .tab{
   flex:1;background:transparent;border:0;color:rgba(255,255,255,.7);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
