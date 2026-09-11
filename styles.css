@@ -136,6 +136,18 @@ input:focus,textarea:focus{
 textarea{resize:none;min-height:46px;line-height:1.4;}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 
+/* ---------- Missing required-field highlight ---------- */
+.is-invalid,
+input.is-invalid,textarea.is-invalid{
+  box-shadow:0 0 0 2px var(--red)!important;
+  border-radius:var(--radius-sm);
+}
+.money.is-invalid,.calendar.is-invalid,.card.is-invalid,
+.approver-btn.is-invalid,.sigpad.is-invalid{
+  box-shadow:0 0 0 2px var(--red)!important;
+}
+.sigpad.is-invalid{border-color:var(--red);}
+
 /* ---------- Checkbox row ---------- */
 .chk{display:flex;align-items:center;gap:10px;margin-bottom:14px;cursor:pointer;user-select:none;font-size:15px;font-weight:600;color:var(--label);}
 .chk input{position:absolute;opacity:0;pointer-events:none;}

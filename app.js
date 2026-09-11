@@ -268,6 +268,7 @@
     if (formMode === 'wizard') formMode = 'create';
     $('#wizard').hidden = true;
     $('#detailsStep').hidden = false;
+    clearInvalid();
     const create = formMode === 'create';
 
     $('#summary').hidden = !create;
@@ -312,17 +313,14 @@
       case 'acknowledgement':
         $('#btnPreview').hidden = false;
         $('#btnConfirmAck').hidden = false;
-        $('#btnConfirmAck').disabled = !ackSigned();
         break;
       case 'documents':
         $('#btnPreview').hidden = false;
         $('#btnSubmitDocs').hidden = false;
-        $('#btnSubmitDocs').disabled = state.receipts.length === 0;
         break;
       case 'approval':
         $('#btnPreview').hidden = false;
         $('#btnMarkApproved').hidden = false;
-        $('#btnMarkApproved').disabled = !bothApproversSigned();
         break;
       case 'recording':
         $('#btnPreview').hidden = false;
@@ -451,10 +449,61 @@
     return record;
   }
 
+  /* ---------- Required-field validation ---------- */
+  // Required fields for the current stage → [{ label, sel }] for anything missing.
+  function missingRequired() {
+    const f = collect().fields;
+    const miss = [];
+    const need = (ok, label, sel) => { if (!ok) miss.push({ label, sel }); };
+    const filled = v => !!(v && String(v).trim());
+    const positive = v => filled(v) && parseFloat(v) > 0;
+
+    if (formMode === 'create') {
+      need(filled(f.txnType), 'Transaction type', '#detailsStep');
+      need(filled(f.category), 'Category', '#detailsStep');
+      if (radioVal('category') === 'Fast Offering')
+        need(filled(f.foRecipient), 'Fast offering recipient', '#foRecipient');
+      need(filled(f.activityDate), 'Activity date', '#activityCal');
+      need(positive(f.amount), 'Amount', '#amount');
+      need(filled(f.payee), 'Payee', '#payee');
+      need(filled(f.purpose), 'Payment purpose', '#purpose');
+      const same = $('#requestorSame') && $('#requestorSame').checked;
+      if (!same) need(filled(f.requestorName), 'Requestor name', '#requestorName');
+      need(!!state.signatures.requestor, 'Requestor signature', '.sigpad[data-sig="requestor"]');
+    } else if (formMode === 'acknowledgement') {
+      const kind = ackKind().sig;
+      if (kind === 'reimburse') need(filled(f.reimburseName), 'Recipient name', '#reimburseName');
+      else if (kind === 'caReceive') {
+        need(filled(f.caReceiveName), 'Recipient name', '#caReceiveName');
+        need(positive(f.caReceived), 'Amount received', 'input[name="caReceived"]');
+      } else if (kind === 'acknowledge') need(filled(f.ackName), 'Received by', '#ackName');
+      need(!!state.signatures[kind], 'Acknowledgement signature', `.sigpad[data-sig="${kind}"]`);
+    } else if (formMode === 'documents') {
+      need(state.receipts.length > 0, 'At least one document', '#receiptsCard');
+    } else if (formMode === 'approval') {
+      need(!!state.signatures.approver1, '1st approver signature', '#btnApprover1');
+      need(!!state.signatures.approver2, '2nd approver signature', '#btnApprover2');
+    }
+    return miss;
+  }
+
+  function clearInvalid() { $$('.is-invalid').forEach(el => el.classList.remove('is-invalid')); }
+
+  // Flag any missing required fields; return true when the stage is complete.
+  function validateStage() {
+    clearInvalid();
+    const miss = missingRequired();
+    if (!miss.length) return true;
+    miss.forEach(m => { const el = $(m.sel); if (el) el.classList.add('is-invalid'); });
+    const first = $(miss[0].sel);
+    if (first && first.scrollIntoView) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    toast('Fill in: ' + miss.map(m => m.label).join(', '));
+    return false;
+  }
+
   // Create → submit a new request (enters the "For Withdrawal" queue).
   function submitRequest() {
-    const f = collect().fields;
-    if (!f.payee && !f.amount && !f.purpose) { toast('Add transaction details first'); return; }
+    if (!validateStage()) return;
     persist('withdrawal');
     toast('Sent for withdrawal');
     newForm();
@@ -468,17 +517,17 @@
   }
   function markWithdrawn() { advanceStage('acknowledgement', 'Marked as withdrawn'); }
   function confirmAck() {
-    if (!ackSigned()) { toast('Add the acknowledgement signature first'); return; }
+    if (!validateStage()) return;
     // Cash advances (money given out) must upload receipts before approval.
     if (radioVal('txnType') === 'Cash Advance') advanceStage('documents', 'Receipt confirmed — upload documents');
     else advanceStage('approval', 'Receipt confirmed');
   }
   function submitDocs() {
-    if (!state.receipts.length) { toast('Upload at least one document'); return; }
+    if (!validateStage()) return;
     advanceStage('approval', 'Documents uploaded');
   }
   function markApproved() {
-    if (!bothApproversSigned()) { toast('Both approvers must sign'); return; }
+    if (!validateStage()) return;
     advanceStage('recording', 'Approved — for recording');
   }
   function markRecorded() { advanceStage('done', 'Recorded'); }
@@ -509,6 +558,8 @@
     $('#ap2Status').textContent = s2 ? (d2 ? 'Signed · ' + d2 : 'Signed') : 'Tap to sign';
     $('#btnApprover1').classList.toggle('is-signed', s1);
     $('#btnApprover2').classList.toggle('is-signed', s2);
+    if (s1) $('#btnApprover1').classList.remove('is-invalid');
+    if (s2) $('#btnApprover2').classList.remove('is-invalid');
   }
 
   // Approver flow: pick a name (if needed) → capture signature.
@@ -629,6 +680,7 @@
       pad.querySelectorAll('img').forEach(i => i.remove());
       if (data) {
         pad.classList.add('has-sig');
+        pad.classList.remove('is-invalid');
         const img = new Image();
         img.src = data;
         pad.insertBefore(img, clearBtn);
@@ -762,6 +814,7 @@
       if (!file.type.startsWith('image/')) { pending--; return; }
       compressImage(file, 1400, 0.72).then(dataURL => {
         state.receipts.push(dataURL);
+        $('#receiptsCard').classList.remove('is-invalid');
         renderReceipts();
         saveDraft();
         if (--pending === 0) toast('Receipt added');
@@ -1308,6 +1361,7 @@
     const WIZ_NAMES = ['txnType', 'category', 'foType'];
     // form input -> conditionals, draft, excess
     form.addEventListener('input', (e) => {
+      if (e.target.classList) e.target.classList.remove('is-invalid');
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
       if (e.target.name === 'caReceived' || e.target.name === 'caSpent') computeExcess();
       if (e.target.name === 'payee') { if (formMode === 'approval') updateApproverButtons(); syncRequestorSame(); }
@@ -1388,6 +1442,7 @@
       if (day) {                                          // pick a day → collapse
         form.elements['activityDate'].value = isoOf(cal.y, cal.m, +day.dataset.day);
         calOpen = false;
+        $('#activityCal').classList.remove('is-invalid');
         renderActivity();
         saveDraft();
       }
