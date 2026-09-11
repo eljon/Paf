@@ -1783,6 +1783,12 @@
       }, 60);
     });
 
+    // pull-to-refresh (queue / history)
+    document.addEventListener('touchstart', ptrOnStart, { passive: true });
+    document.addEventListener('touchmove', ptrOnMove, { passive: true });
+    document.addEventListener('touchend', ptrOnEnd);
+    document.addEventListener('touchcancel', ptrOnEnd);
+
     // version history (bottom of History) + /v<n> route
     $('#historyVersion').textContent = 'v' + APP_VERSION;
     $('#historyVersion').addEventListener('click', () => openVersionModal(APP_VERSION));
@@ -1809,11 +1815,77 @@
       if (!window.Cloud || !window.Cloud.enabled) return;
       window.Cloud.subscribe(recs => {
         saveRecords(recs);                             // mirror to local cache
-        if (currentTab === 'history') renderHistory($('#historySearch').value);
+        refreshCurrentView();                          // live-update queue/history
       });
     };
     if (window.Cloud && window.Cloud.enabled) start();
     else window.addEventListener('cloud-ready', start, { once: true });
+  }
+
+  // Re-render whichever list view is showing (queue or history).
+  function refreshCurrentView() {
+    if (currentTab === 'queue') renderQueue();
+    else if (currentTab === 'history') renderHistory($('#historySearch').value);
+  }
+
+  /* ---------- Pull to refresh (queue / history) ---------- */
+  let ptrStartY = null, ptrPulling = false, ptrReady = false, ptrBusy = false;
+  const PTR_TRIGGER = 66;   // px pulled to trigger a refresh
+
+  function ptrEligible() {
+    return !ptrBusy
+      && (currentTab === 'queue' || currentTab === 'history')
+      && window.scrollY <= 0
+      && sigModal.hidden && $('#docModal').hidden
+      && $('#versionModal').hidden && $('#choiceModal').hidden;
+  }
+  function ptrReset() {
+    const ind = $('#ptr');
+    ind.classList.remove('is-ready', 'is-refreshing');
+    ind.style.opacity = '';
+    ind.style.transform = '';
+    ptrReady = false;
+  }
+  function ptrOnStart(e) {
+    if (!ptrEligible()) { ptrStartY = null; return; }
+    ptrStartY = e.touches[0].clientY;
+    ptrPulling = false;
+  }
+  function ptrOnMove(e) {
+    if (ptrStartY == null || ptrBusy) return;
+    const dy = e.touches[0].clientY - ptrStartY;
+    if (dy <= 0 || window.scrollY > 0) { if (ptrPulling) ptrReset(); ptrPulling = false; return; }
+    ptrPulling = true;
+    const pull = Math.min(dy * 0.5, 80);
+    const ind = $('#ptr');
+    ind.style.opacity = String(Math.min(1, pull / 36));
+    ind.style.transform = `translateX(-50%) translateY(${pull}px)`;
+    ptrReady = dy >= PTR_TRIGGER;
+    ind.classList.toggle('is-ready', ptrReady);
+  }
+  function ptrOnEnd() {
+    if (ptrStartY == null) return;
+    const go = ptrPulling && ptrReady;
+    ptrStartY = null; ptrPulling = false;
+    if (go) doPullRefresh(); else ptrReset();
+  }
+  async function doPullRefresh() {
+    ptrBusy = true;
+    const ind = $('#ptr');
+    ind.classList.remove('is-ready');
+    ind.classList.add('is-refreshing');
+    ind.style.opacity = '1';
+    ind.style.transform = 'translateX(-50%) translateY(48px)';
+    const started = Date.now();
+    try {
+      if (window.Cloud && window.Cloud.enabled && window.Cloud.refresh) {
+        const recs = await window.Cloud.refresh();
+        if (Array.isArray(recs)) saveRecords(recs);
+      }
+    } catch (e) { console.error('Refresh failed', e); }
+    refreshCurrentView();
+    const wait = Math.max(0, 500 - (Date.now() - started));  // keep the spinner visible briefly
+    setTimeout(() => { ptrReset(); ptrBusy = false; toast('Refreshed'); }, wait);
   }
 
   function init() {

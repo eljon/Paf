@@ -40,6 +40,13 @@ if (configured) {
         );
       },
 
+      // One-off fetch of all transactions (for pull-to-refresh).
+      async refresh() {
+        const q = fs.query(col, fs.orderBy("createdAt", "desc"));
+        const snap = await fs.getDocs(q);
+        return snap.docs.map(d => d.data());
+      },
+
       // Save/update a record. The whole record — including receipt/document
       // photos as inline data URIs — is written to one Firestore document.
       // (Firestore caps a document at ~1 MB, so photos are compressed small.)

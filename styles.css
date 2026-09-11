@@ -66,6 +66,24 @@ input,textarea,select{font-family:inherit;}
 
 #app{max-width:600px;margin:0 auto;min-height:100vh;position:relative;}
 
+/* ---------- Pull to refresh ---------- */
+.ptr{
+  position:fixed;top:calc(var(--safe-t) + 6px);left:50%;z-index:40;
+  width:34px;height:34px;border-radius:50%;
+  background:var(--card);box-shadow:0 4px 14px rgba(0,0,0,.18);
+  display:flex;align-items:center;justify-content:center;
+  transform:translateX(-50%) translateY(-60px);opacity:0;
+  transition:opacity .2s;pointer-events:none;
+}
+.ptr__spin{
+  width:18px;height:18px;border-radius:50%;
+  border:2.5px solid var(--separator);border-top-color:var(--blue);
+  transition:transform .1s;
+}
+.ptr.is-ready .ptr__spin{transform:rotate(180deg);}
+.ptr.is-refreshing .ptr__spin{animation:ptr-spin .7s linear infinite;}
+@keyframes ptr-spin{to{transform:rotate(360deg);}}
+
 /* ---------- Nav bar (translucent, iOS) ---------- */
 .topbar{
   position:sticky;top:0;z-index:30;
