@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Redirecting…</title>
+  <script>
+    /* GitHub Pages SPA fallback.
+       A missing path like /Paf/v3 is served this page; send it back to the
+       app as a hash route (/Paf/#/v3) so /v<number> links reach the version
+       history. Non-"v" paths just land on the app. */
+    (function () {
+      var parts = location.pathname.split('/').filter(Boolean);
+      var last = parts.length ? parts[parts.length - 1] : '';
+      var base = parts.slice(0, -1).join('/');
+      base = base ? '/' + base + '/' : '/';
+      var hash = /^v\d*$/i.test(last) ? '#/' + last.toLowerCase() : '';
+      location.replace(base + hash);
+    })();
+  </script>
+</head>
+<body></body>
+</html>

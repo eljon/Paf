@@ -43,6 +43,21 @@
     done:            'Recorded',
   };
 
+  /* ---------- Version / changelog ---------- */
+  // Newest last. The current version is the last entry; reach any version at
+  // /v<number> (e.g. /v3) — see the version-history modal.
+  const CHANGELOG = [
+    { v: 1, notes: 'Digitized PAF: overlay output on the real form image, on-screen signatures, receipt photos, transaction history, PDF/PNG export.' },
+    { v: 2, notes: 'Auto-advancing question wizard; separate requestor and approver signing; inline activity-date calendar.' },
+    { v: 3, notes: 'Apple-style redesign; peso amounts; shareable transaction links.' },
+    { v: 4, notes: 'Firebase cloud sync and a workflow queue: For Withdrawal → Acknowledgement → Approval → Recording.' },
+    { v: 5, notes: 'Proper icons in place of emojis; dark mode removed; Document Upload stage for cash advances; auto-approve after both signatures.' },
+    { v: 6, notes: 'Required-field checks before each step; sequential transaction numbers on the form; History shows only recorded transactions; full-screen document viewer; Open PDF and gallery save.' },
+    { v: 7, notes: 'Everything stored in Firestore (photos inline, auto-compressed to fit); removed the New tab; icon+text top-bar buttons; tab bar stays put when the keyboard opens.' },
+    { v: 8, notes: 'Version numbers with a /v<number> route and the current version shown at the bottom of History.' },
+  ];
+  const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
+
   /* ---------- App state ---------- */
   const state = {
     signatures: {},   // key -> dataURL
@@ -1510,6 +1525,44 @@
   }
 
   /* ================================================================
+     Version history  (reachable at /v<number>, e.g. /v3)
+     ================================================================ */
+  function renderChangelog(highlight) {
+    const mount = $('#changelog');
+    if (!mount) return;
+    mount.innerHTML = CHANGELOG.slice().reverse().map(e => `
+      <div class="changelog__item${e.v === highlight ? ' is-current' : ''}">
+        <div class="changelog__v">v${e.v}${e.v === APP_VERSION ? ' <span class="changelog__badge">current</span>' : ''}</div>
+        <div class="changelog__notes">${escapeHtml(e.notes)}</div>
+      </div>`).join('');
+  }
+  function openVersionModal(focusV) {
+    renderChangelog(focusV || APP_VERSION);
+    $('#versionModal').hidden = false;
+    const target = focusV && CHANGELOG.some(e => e.v === focusV) ? focusV : null;
+    if (target) {
+      const el = $('#changelog .changelog__item.is-current');
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+    }
+  }
+  function closeVersionModal() {
+    $('#versionModal').hidden = true;
+    // drop a #/v… route so refreshing doesn't reopen it
+    if (/^#\/?v/i.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
+  }
+  // Parse #/v, #/v3, #v3 → version number (0 = no specific version).
+  function versionRoute() {
+    const m = (location.hash || '').match(/^#\/?v(\d+)?$/i);
+    return m ? (m[1] ? parseInt(m[1], 10) : 0) : null;
+  }
+  function handleVersionRoute() {
+    const n = versionRoute();
+    if (n === null) return false;
+    openVersionModal(n || APP_VERSION);
+    return true;
+  }
+
+  /* ================================================================
      Utilities
      ================================================================ */
   function escapeHtml(v) {
@@ -1730,11 +1783,18 @@
       }, 60);
     });
 
+    // version history (bottom of History) + /v<n> route
+    $('#historyVersion').textContent = 'v' + APP_VERSION;
+    $('#historyVersion').addEventListener('click', () => openVersionModal(APP_VERSION));
+    $$('#versionModal [data-close]').forEach(el => el.addEventListener('click', closeVersionModal));
+    window.addEventListener('hashchange', handleVersionRoute);
+
     // esc closes modal
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!sigModal.hidden) closeSigModal();
       if (!$('#docModal').hidden) closeDocViewer();
+      if (!$('#versionModal').hidden) closeVersionModal();
       const cm = $('#choiceModal');
       if (!cm.hidden && cm._finish) cm._finish(null);
     });
@@ -1763,6 +1823,7 @@
     if (!importFromHash()) loadDraft();
     switchTab('form');
     setupCloud();
+    handleVersionRoute();   // open version history if the URL is /v<number>
   }
 
   document.addEventListener('DOMContentLoaded', init);

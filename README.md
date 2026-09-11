@@ -37,6 +37,8 @@ fully offline with on-device storage (`localStorage`).
   blocks appear only when relevant, and the excess-cash total is calculated
   automatically.
 - **Autosave draft** — an in-progress form is kept so you never lose work.
+- **Version history** — the current app version shows at the bottom of the
+  History tab; tap it (or visit `/v<number>`, e.g. `/v3`) to see the changelog.
 
 ## Cloud sync with Firebase
 

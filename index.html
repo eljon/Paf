@@ -289,6 +289,7 @@
         <p>No completed transactions yet.</p>
         <button class="btn" id="btnEmptyNew">Create a request</button>
       </div>
+      <button class="app-version" id="historyVersion" type="button" aria-label="Version history"></button>
     </main>
 
     <!-- ============ PREVIEW / OUTPUT VIEW ============ -->
@@ -367,6 +368,18 @@
     </div>
     <button class="docviewer__nav docviewer__nav--prev" id="docPrev" type="button" aria-label="Previous">‹</button>
     <button class="docviewer__nav docviewer__nav--next" id="docNext" type="button" aria-label="Next">›</button>
+  </div>
+
+  <!-- Version history -->
+  <div class="modal" id="versionModal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__sheet">
+      <div class="modal__head">
+        <strong id="versionTitle">Version history</strong>
+        <button class="modal__x" data-close aria-label="Close">✕</button>
+      </div>
+      <div class="changelog" id="changelog"></div>
+    </div>
   </div>
 
   <!-- Toast -->
