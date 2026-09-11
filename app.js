@@ -37,6 +37,7 @@
   const STATUS_LABEL = {
     withdrawal:      'For Withdrawal',
     acknowledgement: 'For Acknowledgement',
+    documents:       'For Document Upload',
     approval:        'For Approval',
     recording:       'For Recording',
     done:            'Recorded',
@@ -172,7 +173,7 @@
   let formMode = 'wizard';
   let wizIndex = 0;
   let advanceTimer;
-  const isStage = () => ['withdrawal', 'acknowledgement', 'approval', 'recording', 'done'].includes(formMode);
+  const isStage = () => ['withdrawal', 'acknowledgement', 'documents', 'approval', 'recording', 'done'].includes(formMode);
 
   /* Approver roster */
   const BISHOP = 'Eljon Serrano';
@@ -244,6 +245,9 @@
     $('#requestContent').hidden = !create;
     $('#ackContent').hidden = formMode !== 'acknowledgement';
     $('#approvalsSection').hidden = formMode !== 'approval';
+    // Receipts: in the request for non-cash-advance, or in the Document Upload stage.
+    const isCA = radioVal('txnType') === 'Cash Advance';
+    $('#receiptsCard').hidden = !((create && !isCA) || formMode === 'documents');
 
     if (create) {
       renderWizProgress(wizQuestions().length);
@@ -261,7 +265,7 @@
 
   // Which action-bar buttons show for the current mode.
   function renderStageActions() {
-    ['#btnSubmitRequest', '#btnClear', '#btnPreview',
+    ['#btnSubmitRequest', '#btnClear', '#btnPreview', '#btnSubmitDocs',
      '#btnMarkWithdrawn', '#btnConfirmAck', '#btnMarkApproved', '#btnMarkRecorded']
       .forEach(id => { $(id).hidden = true; });
     if (currentTab !== 'form') { $('#formActions').hidden = true; return; }
@@ -280,6 +284,11 @@
         $('#btnConfirmAck').hidden = false;
         $('#btnConfirmAck').disabled = !ackSigned();
         break;
+      case 'documents':
+        $('#btnPreview').hidden = false;
+        $('#btnSubmitDocs').hidden = false;
+        $('#btnSubmitDocs').disabled = state.receipts.length === 0;
+        break;
       case 'approval':
         $('#btnPreview').hidden = false;
         $('#btnMarkApproved').hidden = false;
@@ -294,18 +303,31 @@
     }
   }
 
+  // Amount stays editable until the recipient signs the acknowledgement.
+  function amountEditable() {
+    return (formMode === 'withdrawal' || formMode === 'acknowledgement') && !ackSigned();
+  }
   function renderStageSummary() {
     const f = collect().fields;
     const el = $('#stageSummary');
     const amt = f.amount ? '₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '';
     const date = f.activityDate ? fmtLongDate(f.activityDate) : '';
     const meta = [f.txnType, f.category, date].filter(Boolean).join(' · ');
+    const amountHtml = amountEditable()
+      ? `<div class="stage-amount">
+           <label for="stageAmount">Amount</label>
+           <div class="money"><span>₱</span>
+             <input id="stageAmount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${escapeHtml(f.amount || '')}">
+           </div>
+         </div>`
+      : (amt ? `<span class="stage-summary__amount">${amt}</span>` : '');
     el.innerHTML =
       `<span class="stage-summary__status">${STATUS_LABEL[form.elements['status'].value] || ''}</span>
-       ${amt ? `<span class="stage-summary__amount">${amt}</span>` : ''}
+       ${amountEditable() ? '' : amountHtml}
        <div class="stage-summary__payee">${escapeHtml(f.payee || 'Untitled')}</div>
        <div class="stage-summary__meta">${escapeHtml(meta)}</div>
-       ${f.purpose ? `<div class="stage-summary__purpose">${escapeHtml(f.purpose)}</div>` : ''}`;
+       ${f.purpose ? `<div class="stage-summary__purpose">${escapeHtml(f.purpose)}</div>` : ''}
+       ${amountEditable() ? amountHtml : ''}`;
   }
 
   /* ---------- Inline calendar (activity date) ---------- */
@@ -417,7 +439,13 @@
   function markWithdrawn() { advanceStage('acknowledgement', 'Marked as withdrawn'); }
   function confirmAck() {
     if (!ackSigned()) { toast('Add the acknowledgement signature first'); return; }
-    advanceStage('approval', 'Receipt confirmed');
+    // Cash advances (money given out) must upload receipts before approval.
+    if (radioVal('txnType') === 'Cash Advance') advanceStage('documents', 'Receipt confirmed — upload documents');
+    else advanceStage('approval', 'Receipt confirmed');
+  }
+  function submitDocs() {
+    if (!state.receipts.length) { toast('Upload at least one document'); return; }
+    advanceStage('approval', 'Documents uploaded');
   }
   function markApproved() {
     if (!bothApproversSigned()) { toast('Both approvers must sign'); return; }
@@ -595,6 +623,11 @@
     sigModal.hidden = true;
     state.activeSig = null;
   }
+  // Done turns solid once there's a signature (drawn or already saved).
+  function updateSigDone() {
+    const ready = sigDirty || !!(state.activeSig && state.signatures[state.activeSig]);
+    $('#sigDone').classList.toggle('is-active', ready);
+  }
 
   let sigW = 0, sigH = 0;
   function setupCanvas() {
@@ -612,6 +645,7 @@
     sigCtx.strokeStyle = '#12233b';
     sigCtx.clearRect(0, 0, sigW, sigH);
     sigDirty = false;
+    updateSigDone();
     const existing = state.signatures[state.activeSig];
     if (existing) {
       const img = new Image();
@@ -641,6 +675,7 @@
     sigCtx.fillStyle = '#12233b';
     sigCtx.fill();
     sigDirty = true;
+    updateSigDone();
     if (sigCanvas.setPointerCapture && e.pointerId != null) {
       try { sigCanvas.setPointerCapture(e.pointerId); } catch {}
     }
@@ -741,6 +776,7 @@
       el.innerHTML = `<img src="${src}" alt="Receipt ${i + 1}"><button type="button" class="receipt__del" data-i="${i}" aria-label="Remove">✕</button>`;
       grid.appendChild(el);
     });
+    if (formMode === 'documents') renderStageActions();  // enable/disable Submit documents
   }
 
   /* ================================================================
@@ -815,7 +851,7 @@
   function renderQueue() {
     const recs = loadRecords();
     const mount = $('#queueList');
-    const groups = ['withdrawal', 'acknowledgement', 'approval', 'recording'];
+    const groups = ['withdrawal', 'acknowledgement', 'documents', 'approval', 'recording'];
     const total = recs.filter(r => groups.includes(r.status || 'withdrawal')).length;
     $('#queueEmpty').hidden = total !== 0;
     mount.hidden = total === 0;
@@ -1280,6 +1316,7 @@
     $('#btnConfirmAck').addEventListener('click', confirmAck);
     $('#btnMarkApproved').addEventListener('click', markApproved);
     $('#btnMarkRecorded').addEventListener('click', markRecorded);
+    $('#btnSubmitDocs').addEventListener('click', submitDocs);
 
     // Approver buttons -> choose (if needed) then sign
     $('#btnApprover1').addEventListener('click', () => startApprover(1));
@@ -1387,6 +1424,17 @@
     $('#queueList').addEventListener('click', (e) => {
       const card = e.target.closest('[data-act]');
       if (card) openStage(card.dataset.id);
+    });
+
+    // editable amount in a stage (before acknowledgement is signed)
+    $('#stageSummary').addEventListener('input', (e) => {
+      if (e.target.id === 'stageAmount') form.elements['amount'].value = e.target.value;
+    });
+    $('#stageSummary').addEventListener('change', (e) => {
+      if (e.target.id === 'stageAmount' && state.editingId) {
+        persist(form.elements['status'].value || undefined);
+        toast('Amount updated');
+      }
     });
 
     // history
