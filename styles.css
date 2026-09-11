@@ -409,11 +409,13 @@ body.kbd-open .tabbar{display:none;}
 
 .btn{
   border:0;border-radius:var(--radius-ctrl);padding:13px 16px;font-size:17px;font-weight:600;
-  background:var(--fill);color:var(--blue);flex:1;transition:transform .1s,opacity .1s;letter-spacing:-.01em;
+  background:var(--fill);color:var(--blue);flex:0 1 auto;transition:transform .1s,opacity .1s;
+  letter-spacing:-.01em;white-space:nowrap;             /* keep labels on one line */
 }
 .btn:active{transform:scale(.97);opacity:.85;}
 .btn--primary{background:var(--blue-tint);color:var(--blue);}
-.btn--accent{background:var(--blue);color:#fff;}
+/* the primary action button takes the remaining width so its label fits */
+.btn--accent{background:var(--blue);color:#fff;flex:1 1 auto;min-width:0;}
 .btn--ghost{background:transparent;color:var(--blue);flex:0 0 auto;padding:13px 14px;font-weight:400;}
 .btn--sm{padding:9px 14px;font-size:15px;flex:0 0 auto;}
 .btn:disabled{opacity:.4;}

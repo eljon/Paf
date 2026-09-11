@@ -55,6 +55,8 @@
     { v: 6, notes: 'Required-field checks before each step; sequential transaction numbers on the form; History shows only recorded transactions; full-screen document viewer; Open PDF and gallery save.' },
     { v: 7, notes: 'Everything stored in Firestore (photos inline, auto-compressed to fit); removed the New tab; icon+text top-bar buttons; tab bar stays put when the keyboard opens.' },
     { v: 8, notes: 'Version numbers with a /v<number> route and the current version shown at the bottom of History.' },
+    { v: 9, notes: 'Pull down to refresh the Queue and History; live cloud updates now refresh the Queue too.' },
+    { v: 10, notes: 'Action buttons keep their labels on a single line.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
