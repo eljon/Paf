@@ -103,6 +103,7 @@
       const el = form.elements[k];
       if (!el) return;
       if (el instanceof RadioNodeList || el.type === 'radio') return;
+      if (el.type === 'checkbox') { el.checked = (v === 'on' || v === true || v === 'true'); return; }
       el.value = v;
     });
     state.signatures = { ...(rec.signatures || {}) };
@@ -141,6 +142,24 @@
   function updateConditionals() {
     // Only the request-side Fast Offering card (recipient name/MRN).
     $('#fastOfferingCard').hidden = form.elements['category'].value !== 'Fast Offering';
+    syncRequestorSame();
+    syncCaExcess();
+  }
+
+  // "Same as payee": hide the requestor name field and mirror the payee into it.
+  function syncRequestorSame() {
+    const chk = $('#requestorSame');
+    if (!chk) return;
+    const on = chk.checked;
+    $('#requestorNameField').hidden = on;
+    if (on) form.elements['requestorName'].value = form.elements['payee'].value || '';
+  }
+
+  // "With excess cash": reveal the return/excess fields.
+  function syncCaExcess() {
+    const chk = $('#withExcess');
+    if (!chk) return;
+    $('#caExcessFields').hidden = !chk.checked;
   }
 
   // Which acknowledgement card applies to the current transaction.
@@ -158,6 +177,17 @@
   }
   function ackSigned() { return !!state.signatures[ackKind().sig]; }
   function bothApproversSigned() { return !!(state.signatures.approver1 && state.signatures.approver2); }
+
+  // Read-only view of uploaded documents shown to approvers.
+  function renderApprovalDocs() {
+    const card = $('#approvalDocsCard');
+    const grid = $('#approvalDocs');
+    const docs = state.receipts || [];
+    card.hidden = docs.length === 0;
+    grid.innerHTML = docs.map((src, i) =>
+      `<a class="receipt" href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="Document ${i + 1}"></a>`
+    ).join('');
+  }
 
   function computeExcess() {
     const rec = parseFloat(form.elements['caReceived'].value) || 0;
@@ -256,7 +286,7 @@
     } else {
       renderStageSummary();
       if (formMode === 'acknowledgement') renderAckCards();
-      if (formMode === 'approval') updateApproverButtons();
+      if (formMode === 'approval') { updateApproverButtons(); renderApprovalDocs(); }
     }
     renderStageActions();
     $('#btnShare').hidden = currentTab !== 'form';
@@ -1107,14 +1137,17 @@
       o += S('caReceive', 40, 836, 320, 20);
       o += T(470, 806, fmtDate(f.caReceiveDate), { sm: true });
       o += T(1018, 822, money(f.caReceived), { bold: true });
-      o += T(44, 882, f.caReturnName, { sm: true, w: 300 });
-      o += S('caReturn', 40, 896, 320, 20);
-      o += T(470, 866, fmtDate(f.caReturnDate), { sm: true });
-      o += T(1018, 884, money(f.caSpent), { bold: true });
-      o += T(44, 942, f.caBishopName, { sm: true, w: 300 });
-      o += S('caBishop', 40, 956, 320, 18);
-      o += T(470, 926, fmtDate(f.caBishopDate), { sm: true });
-      o += T(1018, 946, money(f.caExcess), { bold: true });
+      // excess-cash rows only when the transaction has excess cash
+      if (f.withExcess === 'on') {
+        o += T(44, 882, f.caReturnName, { sm: true, w: 300 });
+        o += S('caReturn', 40, 896, 320, 20);
+        o += T(470, 866, fmtDate(f.caReturnDate), { sm: true });
+        o += T(1018, 884, money(f.caSpent), { bold: true });
+        o += T(44, 942, f.caBishopName, { sm: true, w: 300 });
+        o += S('caBishop', 40, 956, 320, 18);
+        o += T(470, 926, fmtDate(f.caBishopDate), { sm: true });
+        o += T(1018, 946, money(f.caExcess), { bold: true });
+      }
     }
 
     // (Clerk-use-only boxes are left blank — filled in by the clerk.)
@@ -1277,10 +1310,12 @@
     form.addEventListener('input', (e) => {
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
       if (e.target.name === 'caReceived' || e.target.name === 'caSpent') computeExcess();
-      if (e.target.name === 'payee' && formMode === 'approval') updateApproverButtons();
+      if (e.target.name === 'payee') { if (formMode === 'approval') updateApproverButtons(); syncRequestorSame(); }
       saveDraft();
     });
     form.addEventListener('change', (e) => {
+      if (e.target.name === 'requestorSameAsPayee') syncRequestorSame();
+      if (e.target.name === 'withExcess') syncCaExcess();
       if (WIZ_NAMES.includes(e.target.name)) {
         updateConditionals();
         renderSummary();
@@ -1391,6 +1426,8 @@
       renderStageActions();
       saveDraft();
       closeSigModal();
+      // Both approvers signed → auto-advance to recording.
+      if (formMode === 'approval' && bothApproversSigned()) markApproved();
     });
     $$('#sigModal [data-close]').forEach(el => el.addEventListener('click', closeSigModal));
 

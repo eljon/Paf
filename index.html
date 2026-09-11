@@ -115,9 +115,16 @@
 
             <section class="card">
               <h2 class="card__title">Requestor</h2>
+              <label class="chk">
+                <input type="checkbox" id="requestorSame" name="requestorSameAsPayee" />
+                <span class="chk__box"></span>
+                <span>Same as payee</span>
+              </label>
               <div class="field">
-                <label for="requestorName">Organization leader / Requestor name</label>
-                <input id="requestorName" name="requestorName" type="text" autocomplete="off" />
+                <div id="requestorNameField">
+                  <label for="requestorName">Organization leader / Requestor name</label>
+                  <input id="requestorName" name="requestorName" type="text" autocomplete="off" />
+                </div>
                 <div class="sigrow">
                   <div class="sigpad" data-sig="requestor"></div>
                   <input class="sigdate" name="requestorDate" type="date" aria-label="Requestor date" />
@@ -131,7 +138,7 @@
             <h2 class="card__title">Receipts &amp; supporting docs</h2>
             <div class="receipts" id="receiptGrid"></div>
             <label class="uploader">
-              <input type="file" id="receiptInput" accept="image/*" capture="environment" multiple hidden />
+              <input type="file" id="receiptInput" accept="image/*" multiple hidden />
               <span class="uploader__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
               <span>Add photo / receipt</span>
             </label>
@@ -156,7 +163,6 @@
 
             <section class="card" id="cashAdvanceCard" hidden>
               <h2 class="card__title">Acknowledgement</h2>
-              <p class="card__hint">Full accounting required: official receipts, invoices, and return of excess cash.</p>
               <div class="field">
                 <label for="caReceiveName">Person receiving cash advance</label>
                 <input id="caReceiveName" name="caReceiveName" type="text" autocomplete="off" placeholder="Name" />
@@ -169,28 +175,35 @@
                   <input name="caReceived" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount received" />
                 </div>
               </div>
-              <div class="field">
-                <label for="caReturnName">Person returning excess cash</label>
-                <input id="caReturnName" name="caReturnName" type="text" autocomplete="off" placeholder="Name" />
-                <div class="sigrow">
-                  <div class="sigpad" data-sig="caReturn"></div>
-                  <input class="sigdate" name="caReturnDate" type="date" aria-label="Cash returned date" />
+              <label class="chk">
+                <input type="checkbox" id="withExcess" name="withExcess" />
+                <span class="chk__box"></span>
+                <span>With excess cash</span>
+              </label>
+              <div id="caExcessFields" hidden>
+                <div class="field">
+                  <label for="caReturnName">Person returning excess cash</label>
+                  <input id="caReturnName" name="caReturnName" type="text" autocomplete="off" placeholder="Name" />
+                  <div class="sigrow">
+                    <div class="sigpad" data-sig="caReturn"></div>
+                    <input class="sigdate" name="caReturnDate" type="date" aria-label="Cash returned date" />
+                  </div>
+                  <div class="money money--inline">
+                    <span>− ₱</span>
+                    <input name="caSpent" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount spent" />
+                  </div>
                 </div>
-                <div class="money money--inline">
-                  <span>− ₱</span>
-                  <input name="caSpent" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Amount spent" />
-                </div>
-              </div>
-              <div class="field">
-                <label for="caBishopName">Bishop/President <span class="muted">(upon receipt of excess cash)</span></label>
-                <input id="caBishopName" name="caBishopName" type="text" autocomplete="off" placeholder="Name" />
-                <div class="sigrow">
-                  <div class="sigpad" data-sig="caBishop"></div>
-                  <input class="sigdate" name="caBishopDate" type="date" aria-label="Bishop receipt date" />
-                </div>
-                <div class="money money--inline money--total">
-                  <span>= ₱</span>
-                  <input name="caExcess" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Excess returned" readonly />
+                <div class="field">
+                  <label for="caBishopName">Bishop/President <span class="muted">(upon receipt of excess cash)</span></label>
+                  <input id="caBishopName" name="caBishopName" type="text" autocomplete="off" placeholder="Name" />
+                  <div class="sigrow">
+                    <div class="sigpad" data-sig="caBishop"></div>
+                    <input class="sigdate" name="caBishopDate" type="date" aria-label="Bishop receipt date" />
+                  </div>
+                  <div class="money money--inline money--total">
+                    <span>= ₱</span>
+                    <input name="caExcess" type="number" inputmode="decimal" step="0.01" min="0" placeholder="Excess returned" readonly />
+                  </div>
                 </div>
               </div>
             </section>
@@ -225,6 +238,11 @@
             <input type="hidden" id="approver1Date" name="approver1Date" />
             <input type="hidden" id="approver2Name" name="approver2Name" />
             <input type="hidden" id="approver2Date" name="approver2Date" />
+
+            <section class="card" id="approvalDocsCard" hidden>
+              <h2 class="card__title">Uploaded documents</h2>
+              <div class="receipts" id="approvalDocs"></div>
+            </section>
 
             <section class="card">
               <h2 class="card__title">Approvals <span class="muted">(both required)</span></h2>
