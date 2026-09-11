@@ -828,22 +828,53 @@
   /* ================================================================
      Receipts / photo upload
      ================================================================ */
-  function handleFiles(files) {
-    const list = Array.from(files);
-    let pending = list.length;
-    if (!pending) return;
-    list.forEach(file => {
-      if (!file.type.startsWith('image/')) { pending--; return; }
-      // Photos live inline in the Firestore document (1 MB cap), so keep them
-      // small — legible for receipts while leaving room for several per form.
-      compressImage(file, 1100, 0.6).then(dataURL => {
-        state.receipts.push(dataURL);
-        $('#receiptsCard').classList.remove('is-invalid');
-        renderReceipts();
-        saveDraft();
-        if (--pending === 0) toast('Receipt added');
-      }).catch(() => { pending--; });
-    });
+  // Photos live inline in the Firestore document, which is capped at ~1 MB.
+  // Keep the whole document (all photos + fields + signatures) under this, and
+  // no single photo above the per-photo ceiling, so uploads always fit.
+  const DOC_BUDGET = 850 * 1024;    // headroom under Firestore's 1 MB doc limit
+  const PHOTO_MAX  = 320 * 1024;    // largest a single stored photo may be
+  const PHOTO_FLOOR = 70 * 1024;    // if less room than this remains, stop adding
+
+  // Byte size of a data: URI's payload.
+  function dataUrlBytes(u) {
+    const i = u.indexOf(',');
+    const b64 = i >= 0 ? u.slice(i + 1) : u;
+    const pad = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
+    return Math.floor(b64.length * 3 / 4) - pad;
+  }
+  function receiptsBytes() { return state.receipts.reduce((n, r) => n + dataUrlBytes(r), 0); }
+
+  // Compress an image, stepping quality/size down until it fits maxBytes.
+  async function compressToLimit(file, maxBytes) {
+    const steps = [[1100, 0.6], [1100, 0.5], [1000, 0.48], [900, 0.45],
+                   [800, 0.42], [700, 0.4], [600, 0.38], [500, 0.36]];
+    let out = await compressImage(file, steps[0][0], steps[0][1]);
+    for (let i = 1; i < steps.length && dataUrlBytes(out) > maxBytes; i++) {
+      out = await compressImage(file, steps[i][0], steps[i][1]);
+    }
+    return out;
+  }
+
+  async function handleFiles(files) {
+    const list = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!list.length) return;
+    let added = 0, blocked = false;
+    for (const file of list) {
+      const remaining = DOC_BUDGET - receiptsBytes();
+      if (remaining < PHOTO_FLOOR) { blocked = true; break; }
+      let dataURL;
+      try { dataURL = await compressToLimit(file, Math.min(PHOTO_MAX, remaining)); }
+      catch { continue; }
+      // Only reject for room if there's already at least one photo saved.
+      if (dataUrlBytes(dataURL) > remaining && state.receipts.length) { blocked = true; break; }
+      state.receipts.push(dataURL);
+      $('#receiptsCard').classList.remove('is-invalid');
+      renderReceipts();
+      saveDraft();
+      added++;
+    }
+    if (added) toast(added === 1 ? 'Receipt added' : added + ' receipts added');
+    if (blocked) toast('Storage limit reached for this form — remove a photo to add more');
   }
 
   function compressImage(file, maxSize, quality) {

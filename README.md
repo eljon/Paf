@@ -47,10 +47,11 @@ transaction records *and* receipt/document photos (stored inline in the same
 document — no Firebase Storage is used). The app still keeps a local cache and
 works offline, syncing when it can.
 
-> **Note on photos:** because photos are stored inline and Firestore caps a
-> document at **1 MB**, they're compressed and a form should stay under ~4–5
-> photos. If a save exceeds the limit the form is still kept on-device and the
-> app shows a "cloud sync failed" notice.
+> **Note on photos:** photos are stored inline and Firestore caps a document at
+> **1 MB**, so each upload is automatically compressed (stepping quality and
+> size down) to fit within a per-document budget — a large photo is shrunk as
+> needed. When the form is nearly full the app stops accepting more photos and
+> asks you to remove one first, so a form always stays within the limit.
 
 **1. Create the project**
 - Go to <https://console.firebase.google.com> → **Add project**.
