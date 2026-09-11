@@ -15,10 +15,10 @@
    (enable Firestore, Storage, Anonymous Auth, and security rules).
    ============================================================ */
 window.FIREBASE_CONFIG = {
-  apiKey: "",
-  authDomain: "",
-  projectId: "",
-  storageBucket: "",
-  messagingSenderId: "",
-  appId: ""
+  apiKey: "AIzaSyADujcROJJopWLzzWvJuhu_7wAqvOw9HAU",
+  authDomain: "kalayaan-paf.firebaseapp.com",
+  projectId: "kalayaan-paf",
+  storageBucket: "kalayaan-paf.firebasestorage.app",
+  messagingSenderId: "1016067314214",
+  appId: "1:1016067314214:web:d7a79c04521e1f0e544ce7"
 };
