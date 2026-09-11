@@ -464,7 +464,10 @@
     saveRecords([record, ...recs.filter(r => r.id !== record.id)]);
     clearDraft();
     if (window.Cloud && window.Cloud.enabled) {
-      window.Cloud.save(record).catch(err => console.error('Cloud save failed', err));
+      window.Cloud.save(record).catch(err => {
+        console.error('Cloud save failed', err);
+        toast('Saved on device — cloud sync failed (photos may be too large)');
+      });
     }
     return record;
   }
@@ -831,7 +834,9 @@
     if (!pending) return;
     list.forEach(file => {
       if (!file.type.startsWith('image/')) { pending--; return; }
-      compressImage(file, 1400, 0.72).then(dataURL => {
+      // Photos live inline in the Firestore document (1 MB cap), so keep them
+      // small — legible for receipts while leaving room for several per form.
+      compressImage(file, 1100, 0.6).then(dataURL => {
         state.receipts.push(dataURL);
         $('#receiptsCard').classList.remove('is-invalid');
         renderReceipts();

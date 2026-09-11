@@ -42,14 +42,19 @@ fully offline with on-device storage (`localStorage`).
 
 By default, forms are saved only on the device. To make transactions
 **device-independent** — saved in the cloud and visible from any device —
-connect a free Firebase project. Records go to **Firestore** and receipt
-photos to **Firebase Storage**; the app still keeps a local cache and works
-offline, syncing when it can.
+connect a free Firebase project. **Everything** goes to **Firestore**:
+transaction records *and* receipt/document photos (stored inline in the same
+document — no Firebase Storage is used). The app still keeps a local cache and
+works offline, syncing when it can.
+
+> **Note on photos:** because photos are stored inline and Firestore caps a
+> document at **1 MB**, they're compressed and a form should stay under ~4–5
+> photos. If a save exceeds the limit the form is still kept on-device and the
+> app shows a "cloud sync failed" notice.
 
 **1. Create the project**
 - Go to <https://console.firebase.google.com> → **Add project**.
 - **Build → Firestore Database → Create database**.
-- **Build → Storage → Get started**.
 - No authentication is used — access is controlled by the rules below.
 
 **2. Get the web config**
@@ -68,9 +73,8 @@ offline, syncing when it can.
   ```
 
 **3. Security rules (open — no authentication).** One shared `transactions`
-collection so any device sees the same data. Paste these:
-
-- Firestore (**Firestore → Rules**):
+collection so any device sees the same data. Paste this into
+**Firestore → Rules** and **Publish**:
 
   ```
   rules_version = '2';
@@ -83,24 +87,10 @@ collection so any device sees the same data. Paste these:
   }
   ```
 
-- Storage (**Storage → Rules**):
-
-  ```
-  rules_version = '2';
-  service firebase.storage {
-    match /b/{bucket}/o {
-      match /receipts/{allPaths=**} {
-        allow read, write: if true;
-      }
-    }
-  }
-  ```
-
   ⚠️ These rules are **fully open**: anyone who knows the project's config can
   read, write, or delete the transactions. That's fine for a private/internal
   tool while you get going, but before wider use, add authentication and lock
-  the rules down (ask and I'll wire it up). For PNG export of cloud-stored
-  photos, also set a CORS rule on the Storage bucket allowing your domain.
+  the rules down (ask and I'll wire it up).
 
 **4. Commit `firebase-config.js` and deploy.** On load you'll see
 `[Cloud] Firebase enabled` in the console, and saves go to the cloud. The web

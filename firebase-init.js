@@ -1,8 +1,9 @@
 /* ============================================================
    Firebase bridge — exposes window.Cloud for app.js
    ------------------------------------------------------------
-   - Firestore : transaction records (real-time, cross-device)
-   - Storage   : receipt photos
+   - Firestore : everything — transaction records AND receipt/document
+                 photos (stored inline as data URIs in the same document).
+   - No Firebase Storage is used.
    - No authentication (open access — protect via project rules).
 
    The Firebase SDK is only fetched when window.FIREBASE_CONFIG is
@@ -17,15 +18,13 @@ window.Cloud = { enabled: false };
 if (configured) {
   try {
     const base = "https://www.gstatic.com/firebasejs/10.12.5/";
-    const [appMod, fs, st] = await Promise.all([
+    const [appMod, fs] = await Promise.all([
       import(base + "firebase-app.js"),
       import(base + "firebase-firestore.js"),
-      import(base + "firebase-storage.js"),
     ]);
 
     const app = appMod.initializeApp(cfg);
     const db = fs.getFirestore(app);
-    const storage = st.getStorage(app);
     const col = fs.collection(db, "transactions");
 
     window.Cloud = {
@@ -41,24 +40,12 @@ if (configured) {
         );
       },
 
-      // Save/update a record. Receipt photos still held as data: URIs are
-      // uploaded to Storage and replaced with their download URLs.
+      // Save/update a record. The whole record — including receipt/document
+      // photos as inline data URIs — is written to one Firestore document.
+      // (Firestore caps a document at ~1 MB, so photos are compressed small.)
       async save(record) {
-        const receipts = [];
-        const list = record.receipts || [];
-        for (let i = 0; i < list.length; i++) {
-          const r = list[i];
-          if (typeof r === "string" && r.startsWith("data:")) {
-            const sref = st.ref(storage, `receipts/${record.id}/${i}_${Date.now()}`);
-            await st.uploadString(sref, r, "data_url");
-            receipts.push(await st.getDownloadURL(sref));
-          } else {
-            receipts.push(r); // already a URL
-          }
-        }
-        const toSave = { ...record, receipts };
-        await fs.setDoc(fs.doc(col, record.id), toSave);
-        return toSave;
+        await fs.setDoc(fs.doc(col, record.id), record);
+        return record;
       },
 
       async remove(id) {
