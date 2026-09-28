@@ -62,6 +62,7 @@
     { v: 13, notes: 'Approver buttons hide the name when an approver will be chosen from options, showing it only when fixed or already selected.' },
     { v: 14, notes: 'Share sends just the link, without an extra text blurb.' },
     { v: 15, notes: 'Preview shows only the form; tap any document to open a larger view with a Download button.' },
+    { v: 16, notes: 'Cache-busting so each new version loads fresh (fixes an old cached build opening documents as a raw image).' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
