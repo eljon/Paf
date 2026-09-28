@@ -550,6 +550,12 @@ body.kbd-open .tabbar{display:none;}
   display:flex;align-items:center;justify-content:center;
 }
 .docviewer__btn:active{background:rgba(255,255,255,.28);}
+.docviewer__save{
+  display:flex;align-items:center;gap:6px;flex:none;border:0;
+  padding:0 14px;height:38px;border-radius:19px;
+  background:rgba(255,255,255,.16);color:#fff;font-size:15px;font-weight:600;
+}
+.docviewer__save:active{background:rgba(255,255,255,.28);}
 .docviewer__nav{
   position:absolute;top:50%;transform:translateY(-50%);z-index:3;
   width:44px;height:44px;border:0;border-radius:50%;

@@ -61,6 +61,7 @@
     { v: 12, notes: 'Sharing a transaction links to the saved cloud record and opens the recipient at the same stage it was sent from.' },
     { v: 13, notes: 'Approver buttons hide the name when an approver will be chosen from options, showing it only when fixed or already selected.' },
     { v: 14, notes: 'Share sends just the link, without an extra text blurb.' },
+    { v: 15, notes: 'Preview shows only the form; tap any document to open a larger view with a Download button.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -206,7 +207,7 @@
     const docs = state.receipts || [];
     card.hidden = docs.length === 0;
     grid.innerHTML = docs.map((src, i) =>
-      `<a class="receipt" href="${src}" target="_blank" rel="noopener"><img src="${src}" alt="Document ${i + 1}"></a>`
+      `<button type="button" class="receipt" data-i="${i}"><img src="${src}" alt="Document ${i + 1}"></button>`
     ).join('');
   }
 
@@ -938,7 +939,7 @@
     state.receipts.forEach((src, i) => {
       const el = document.createElement('div');
       el.className = 'receipt';
-      el.innerHTML = `<img src="${src}" alt="Receipt ${i + 1}"><button type="button" class="receipt__del" data-i="${i}" aria-label="Remove">✕</button>`;
+      el.innerHTML = `<img src="${src}" alt="Receipt ${i + 1}" data-i="${i}"><button type="button" class="receipt__del" data-i="${i}" aria-label="Remove">✕</button>`;
       grid.appendChild(el);
     });
     if (formMode === 'documents') renderStageActions();  // enable/disable Submit documents
@@ -1301,12 +1302,10 @@
 
     // (Clerk-use-only boxes are left blank — filled in by the clerk.)
 
-    const receipts = (rec.receipts || []).map((src, i) =>
-      `<figure class="pf-receipt"><img src="${src}" alt="receipt ${i + 1}"><figcaption>Receipt ${i + 1}</figcaption></figure>`
-    ).join('');
-
     const txnTag = f.txnNo ? `<span class="pf-txnno">${escapeHtml(f.txnNo)}</span>` : '';
 
+    // Preview shows only the form itself — supporting photos are viewed
+    // separately (tap a document to open it) and still ride along in the PDF.
     return `
       <div class="paf-sheet" id="pafSheet">
         <div class="paf-fill">
@@ -1314,8 +1313,7 @@
           ${txnTag}
           ${o}
         </div>
-      </div>
-      ${receipts ? `<div class="paf-receipts"><h4>Supporting documents / receipts</h4><div class="paf-receipts-grid">${receipts}</div></div>` : ''}`;
+      </div>`;
   }
 
   /* ================================================================
@@ -1760,7 +1758,15 @@
         state.receipts.splice(+btn.dataset.i, 1);
         renderReceipts();
         saveDraft();
+        return;
       }
+      const img = e.target.closest('img');
+      if (img) openDocViewer(state.receipts, +img.dataset.i || 0);   // larger view + download
+    });
+    // approval-stage documents: tap to view larger + download
+    $('#approvalDocs').addEventListener('click', (e) => {
+      const b = e.target.closest('.receipt');
+      if (b) openDocViewer(state.receipts, +b.dataset.i || 0);
     });
 
     // action bar
