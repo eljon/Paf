@@ -63,6 +63,7 @@
     { v: 14, notes: 'Share sends just the link, without an extra text blurb.' },
     { v: 15, notes: 'Preview shows only the form; tap any document to open a larger view with a Download button.' },
     { v: 16, notes: 'Cache-busting so each new version loads fresh (fixes an old cached build opening documents as a raw image).' },
+    { v: 17, notes: 'Removed the Mark approved button — the two approver signatures complete the approval automatically.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -321,7 +322,7 @@
   // Which action-bar buttons show for the current mode.
   function renderStageActions() {
     ['#btnSubmitRequest', '#btnClear', '#btnPreview', '#btnSubmitDocs',
-     '#btnMarkWithdrawn', '#btnConfirmAck', '#btnMarkApproved', '#btnMarkRecorded']
+     '#btnMarkWithdrawn', '#btnConfirmAck', '#btnMarkRecorded']
       .forEach(id => { $(id).hidden = true; });
     if (currentTab !== 'form') { $('#formActions').hidden = true; return; }
     $('#formActions').hidden = false;
@@ -343,8 +344,8 @@
         $('#btnSubmitDocs').hidden = false;
         break;
       case 'approval':
+        // No approve button — both approver signatures complete the approval.
         $('#btnPreview').hidden = false;
-        $('#btnMarkApproved').hidden = false;
         break;
       case 'recording':
         $('#btnPreview').hidden = false;
@@ -1668,7 +1669,6 @@
     $('#btnSubmitRequest').addEventListener('click', submitRequest);
     $('#btnMarkWithdrawn').addEventListener('click', markWithdrawn);
     $('#btnConfirmAck').addEventListener('click', confirmAck);
-    $('#btnMarkApproved').addEventListener('click', markApproved);
     $('#btnMarkRecorded').addEventListener('click', markRecorded);
     $('#btnSubmitDocs').addEventListener('click', submitDocs);
 
