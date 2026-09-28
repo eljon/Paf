@@ -58,6 +58,7 @@
     { v: 9, notes: 'Pull down to refresh the Queue and History; live cloud updates now refresh the Queue too.' },
     { v: 10, notes: 'Action buttons keep their labels on a single line.' },
     { v: 11, notes: 'Queue list clears the bottom tab bar so the last item is no longer hidden.' },
+    { v: 12, notes: 'Sharing a transaction links to the saved cloud record and opens the recipient at the same stage it was sent from.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -1453,9 +1454,10 @@
   }
 
   /* ================================================================
-     Share a transaction via a self-contained link
+     Share a transaction
      ================================================================ */
   const SHARE_MAX = 200000;  // links carry signatures; photos are left out
+  let pendingShareId = null; // a shared #id= waiting for cloud data to arrive
 
   function b64EncodeUnicode(s) { return btoa(unescape(encodeURIComponent(s))); }
   function b64DecodeUnicode(s) { return decodeURIComponent(escape(atob(s))); }
@@ -1484,12 +1486,26 @@
   async function shareTransaction() {
     const f = collect().fields;
     if (!f.payee && !f.amount && !f.purpose) { toast('Add transaction details first'); return; }
-    const out = buildShareURL();
-    const url = out.url;
-    const title = 'Payment Approval' + (f.payee ? ' — ' + f.payee : '');
+
+    const st = form.elements['status'] ? form.elements['status'].value : '';
+    const stageLabel = STATUS_LABEL[st] || '';
+    let url, note = '';
+
+    // Prefer a link to the saved cloud transaction: the recipient opens it at
+    // this exact stage and works on the same record. Fall back to a
+    // self-contained snapshot when nothing is saved yet or there's no cloud.
+    if (state.editingId && window.Cloud && window.Cloud.enabled) {
+      persist(st || undefined);                       // push the latest state first
+      url = location.origin + location.pathname + '#id=' + state.editingId;
+    } else {
+      const out = buildShareURL();
+      url = out.url;
+      note = out.droppedSigs ? ' — too large; signatures not included'
+        : out.hadReceipts ? ' — photos not included in link' : '';
+    }
+
+    const title = 'Payment Approval' + (f.payee ? ' — ' + f.payee : '') + (stageLabel ? ' · ' + stageLabel : '');
     const amt = f.amount ? ' (₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) + ')' : '';
-    const note = out.droppedSigs ? ' — too large; signatures not included'
-      : out.hadReceipts ? ' — photos not included in link' : '';
 
     if (navigator.share) {
       try {
@@ -1507,8 +1523,23 @@
     }
   }
 
-  // Load a shared transaction from the URL hash (#t=...). Returns true if imported.
+  // Load a shared transaction from the URL hash. Returns true if handled.
   function importFromHash() {
+    // Share-by-id: open the saved (cloud) transaction at its current stage.
+    const mid = (location.hash || '').match(/[#&]id=([A-Za-z0-9_-]+)/);
+    if (mid) {
+      const id = mid[1];
+      history.replaceState(null, '', location.pathname + location.search);
+      const rec = loadRecords().find(r => r.id === id);
+      if (rec) { openStage(id); toast('Shared transaction loaded'); }
+      else {
+        pendingShareId = id;                          // wait for cloud sync
+        toast('Loading shared transaction…');
+        setTimeout(() => { if (pendingShareId === id) { pendingShareId = null; toast('Shared transaction not found'); } }, 9000);
+      }
+      return true;
+    }
+    // Self-contained snapshot (#t=...) — used offline / for unsaved forms.
     const m = (location.hash || '').match(/[#&]t=([^&]+)/);
     if (!m) return false;
     try {
@@ -1818,6 +1849,11 @@
       if (!window.Cloud || !window.Cloud.enabled) return;
       window.Cloud.subscribe(recs => {
         saveRecords(recs);                             // mirror to local cache
+        // A shared #id= link may have been waiting for the record to sync in.
+        if (pendingShareId) {
+          const rec = loadRecords().find(r => r.id === pendingShareId);
+          if (rec) { const id = pendingShareId; pendingShareId = null; openStage(id); toast('Shared transaction loaded'); return; }
+        }
         refreshCurrentView();                          // live-update queue/history
       });
     };
