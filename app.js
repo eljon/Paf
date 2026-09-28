@@ -64,6 +64,7 @@
     { v: 15, notes: 'Preview shows only the form; tap any document to open a larger view with a Download button.' },
     { v: 16, notes: 'Cache-busting so each new version loads fresh (fixes an old cached build opening documents as a raw image).' },
     { v: 17, notes: 'Removed the Mark approved button — the two approver signatures complete the approval automatically.' },
+    { v: 18, notes: 'Form output: reimbursement and cash-advance signatures render at full size; checkbox marks centered in their boxes; fixed scattered letter spacing in exported PDF/images on iPhone.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -1228,9 +1229,9 @@
     let o = '';
 
     // --- transaction type checkboxes ---
-    o += K(259, 188, f.txnType === 'Swipe');
-    o += K(487, 188, f.txnType === 'Reimbursement');
-    o += K(779, 188, f.txnType === 'Cash Advance');
+    o += K(244, 184, f.txnType === 'Swipe');
+    o += K(476, 183, f.txnType === 'Reimbursement');
+    o += K(765, 184, f.txnType === 'Cash Advance');
 
     // --- row 1 ---
     o += T(40, 230, f.unit || 'Kalayaan Ward', { bold: true });
@@ -1239,9 +1240,9 @@
 
     // --- payee + category ---
     o += T(40, 296, f.payee, { bold: true, w: 540 });
-    o += K(631, 304, f.category === 'Budget');
-    o += K(731, 304, f.category === 'Fast Offering');
-    o += K(866, 304, f.category === 'Other');
+    o += K(618, 301, f.category === 'Budget');
+    o += K(725, 301, f.category === 'Fast Offering');
+    o += K(861, 301, f.category === 'Other');
 
     // --- purpose ---
     o += T(40, 356, f.purpose, { w: 545, sm: true });
@@ -1249,11 +1250,11 @@
     // --- fast offering ---
     if (isFO) {
       const foSet = (f.foType || '').split(',').map(s => s.trim());
-      o += K(620, 398, foSet.includes('Food'));
-      o += K(711, 398, foSet.includes('Medical'));
-      o += K(799, 398, foSet.includes('Short-Term Shelter (Housing)'));
-      o += K(1018, 398, foSet.includes('Utilities'));
-      o += K(1101, 398, foSet.includes('Other'));
+      o += K(620, 394, foSet.includes('Food'));
+      o += K(698, 395, foSet.includes('Medical'));
+      o += K(791, 396, foSet.includes('Short-Term Shelter (Housing)'));
+      o += K(1012, 396, foSet.includes('Utilities'));
+      o += K(1099, 397, foSet.includes('Other'));
       o += T(730, 421, f.foRecipient, { w: 300 });
       o += T(1050, 421, f.foMRN, { w: 170 });
       o += S('foMember', 725, 452, 360, 40);
@@ -1274,29 +1275,29 @@
 
     // --- reimbursement / generic acknowledgement (uses the reimbursement line) ---
     if (f.txnType === 'Reimbursement') {
-      o += T(48, 706, f.reimburseName, { sm: true, w: 330 });
-      o += S('reimburse', 45, 720, 340, 22);
-      o += T(615, 695, fmtDate(f.reimburseDate));
+      o += T(44, 714, f.reimburseName, { sm: true, w: 200 });
+      o += S('reimburse', 250, 698, 320, 38);
+      o += T(615, 712, fmtDate(f.reimburseDate));
     } else if (rec.signatures && rec.signatures.acknowledge) {
-      o += T(48, 706, f.ackName, { sm: true, w: 330 });
-      o += S('acknowledge', 45, 720, 340, 22);
-      o += T(615, 695, fmtDate(f.ackDate));
+      o += T(44, 714, f.ackName, { sm: true, w: 200 });
+      o += S('acknowledge', 250, 698, 320, 38);
+      o += T(615, 712, fmtDate(f.ackDate));
     }
 
     // --- cash advance ---
     if (f.txnType === 'Cash Advance') {
-      o += T(44, 822, f.caReceiveName, { sm: true, w: 300 });
-      o += S('caReceive', 40, 836, 320, 20);
+      o += T(44, 836, f.caReceiveName, { sm: true, w: 175 });
+      o += S('caReceive', 225, 820, 195, 38);
       o += T(470, 806, fmtDate(f.caReceiveDate), { sm: true });
       o += T(1018, 822, money(f.amount), { bold: true });
       // excess-cash rows only when the transaction has excess cash
       if (f.withExcess === 'on') {
-        o += T(44, 882, f.caReturnName, { sm: true, w: 300 });
-        o += S('caReturn', 40, 896, 320, 20);
+        o += T(44, 896, f.caReturnName, { sm: true, w: 175 });
+        o += S('caReturn', 225, 880, 195, 38);
         o += T(470, 866, fmtDate(f.caReturnDate), { sm: true });
         o += T(1018, 884, money(f.caSpent), { bold: true });
-        o += T(44, 942, f.caBishopName, { sm: true, w: 300 });
-        o += S('caBishop', 40, 956, 320, 18);
+        o += T(44, 956, f.caBishopName, { sm: true, w: 175 });
+        o += S('caBishop', 225, 940, 195, 38);
         o += T(470, 926, fmtDate(f.caBishopDate), { sm: true });
         o += T(1018, 946, money(f.caExcess), { bold: true });
       }

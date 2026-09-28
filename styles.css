@@ -592,13 +592,17 @@ body.kbd-open .tabbar{display:none;}
 .paf-sheet{max-width:900px;margin:0 auto;box-shadow:0 6px 24px rgba(0,0,0,.25);background:#fff;border-radius:6px;overflow:hidden;}
 .paf-fill{
   position:relative;width:100%;
+  /* The page body uses negative letter-spacing; the PDF/PNG renderer
+     (html2canvas) draws non-zero letter-spacing one glyph at a time, which
+     scatters the characters. Keep overlay text at normal spacing. */
+  letter-spacing:normal;word-spacing:normal;
   container-type:inline-size;      /* enables cqw units for text scaling */
   font-family:Arial,Helvetica,sans-serif;color:#0b1f3a;line-height:1;
 }
 .paf-bg{display:block;width:100%;height:auto;}
 /* overlay text */
 .pf-t{
-  position:absolute;font-size:1.65cqw;font-weight:600;color:#0b2350;
+  position:absolute;letter-spacing:normal;font-size:1.65cqw;font-weight:600;color:#0b2350;
   white-space:pre-wrap;word-break:break-word;transform-origin:left top;
 }
 .pf-b{font-weight:800;font-size:1.9cqw;}
