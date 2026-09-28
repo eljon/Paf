@@ -59,6 +59,7 @@
     { v: 10, notes: 'Action buttons keep their labels on a single line.' },
     { v: 11, notes: 'Queue list clears the bottom tab bar so the last item is no longer hidden.' },
     { v: 12, notes: 'Sharing a transaction links to the saved cloud record and opens the recipient at the same stage it was sent from.' },
+    { v: 13, notes: 'Approver buttons hide the name when an approver will be chosen from options, showing it only when fixed or already selected.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -593,8 +594,14 @@
     const s2 = !!state.signatures.approver2;
     const d1 = form.elements['approver1Date'] ? form.elements['approver1Date'].value : '';
     const d2 = form.elements['approver2Date'] ? form.elements['approver2Date'].value : '';
-    $('#ap1Name').textContent = n1 || (special ? 'Choose counselor' : 'Bishop');
-    $('#ap2Name').textContent = n2 || 'Choose approver';
+    // Show the name only when the approver is fixed (no options) or already
+    // chosen. When a choice will be offered, hide the name to avoid confusion.
+    // 1st approver is the Bishop unless it's a self-approval case (then a choice);
+    // the 2nd approver is always chosen from options.
+    const name1 = n1 || (special ? '' : 'Bishop');
+    const name2 = n2 || '';
+    $('#ap1Name').textContent = name1; $('#ap1Name').hidden = !name1;
+    $('#ap2Name').textContent = name2; $('#ap2Name').hidden = !name2;
     $('#ap1Status').textContent = s1 ? (d1 ? 'Signed · ' + d1 : 'Signed') : 'Tap to sign';
     $('#ap2Status').textContent = s2 ? (d2 ? 'Signed · ' + d2 : 'Signed') : 'Tap to sign';
     $('#btnApprover1').classList.toggle('is-signed', s1);
