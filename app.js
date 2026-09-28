@@ -60,6 +60,7 @@
     { v: 11, notes: 'Queue list clears the bottom tab bar so the last item is no longer hidden.' },
     { v: 12, notes: 'Sharing a transaction links to the saved cloud record and opens the recipient at the same stage it was sent from.' },
     { v: 13, notes: 'Approver buttons hide the name when an approver will be chosen from options, showing it only when fixed or already selected.' },
+    { v: 14, notes: 'Share sends just the link, without an extra text blurb.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -1495,7 +1496,6 @@
     if (!f.payee && !f.amount && !f.purpose) { toast('Add transaction details first'); return; }
 
     const st = form.elements['status'] ? form.elements['status'].value : '';
-    const stageLabel = STATUS_LABEL[st] || '';
     let url, note = '';
 
     // Prefer a link to the saved cloud transaction: the recipient opens it at
@@ -1511,12 +1511,9 @@
         : out.hadReceipts ? ' — photos not included in link' : '';
     }
 
-    const title = 'Payment Approval' + (f.payee ? ' — ' + f.payee : '') + (stageLabel ? ' · ' + stageLabel : '');
-    const amt = f.amount ? ' (₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) + ')' : '';
-
     if (navigator.share) {
       try {
-        await navigator.share({ title, text: title + amt, url });
+        await navigator.share({ url });             // just the link, no text blurb
         return;
       } catch (e) {
         if (e && e.name === 'AbortError') return;   // user cancelled
