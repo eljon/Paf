@@ -68,6 +68,7 @@
     { v: 19, notes: 'The Bishop can no longer be the 1st approver when he is the payee or the recipient of a reimbursement or cash advance; name matching is more forgiving (e.g. "Bishop Eljon Serrano").' },
     { v: 20, notes: 'The Bishop cannot approve or sign off on a reimbursement or cash advance he is receiving: not as 1st or 2nd approver, and not on the cash-advance Bishop/President line (a counselor signs instead).' },
     { v: 21, notes: 'Fixed cloud sync and "Storage full" errors: photo limits now measure the real stored size so forms fit in Firestore, signatures are saved smaller, the device keeps a light copy without photos, and forms that fail to upload are kept and retried instead of disappearing.' },
+    { v: 22, notes: 'Signatures and in-progress forms save reliably: device storage left full by older versions is freed as soon as the app opens, a warning appears if a form cannot be saved on the device, and unexpected errors are shown on screen.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -114,6 +115,28 @@
   }
   // A cloud snapshot replaces the cache, but local edits that haven't synced
   // yet are kept (and retried) so a failed upload never loses a record.
+  // Write to device storage; if it's full, drop cached photos (the cloud has
+  // them) and try once more. Returns false only if it still doesn't fit.
+  function lsSet(key, val) {
+    try { localStorage.setItem(key, val); return true; } catch {}
+    try {
+      if (cloudOn() && key !== STORE_KEY) {
+        localStorage.setItem(STORE_KEY, JSON.stringify(loadRecords().map(stripPhotos)));
+        localStorage.setItem(key, val);
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+  // On launch, shrink a cache left full of photos by older versions.
+  function compactCache() {
+    if (!cloudOn()) return;
+    const recs = loadRecords();
+    if (recs.some(r => !r._unsynced && (r.receipts || []).length)) {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(recs.map(stripPhotos))); } catch {}
+    }
+  }
+
   function mergeCloud(cloudRecs) {
     const byId = new Map(cloudRecs.map(r => [r.id, r]));
     const pending = loadRecords().filter(r => r._unsynced &&
@@ -1059,15 +1082,16 @@
   /* ================================================================
      Draft autosave
      ================================================================ */
-  let draftTimer;
+  let draftTimer, draftWarned = false;
   function saveDraft() {
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({
-          ...collect(), editingId: state.editingId,
-        }));
-      } catch {}
+      const ok = lsSet(DRAFT_KEY, JSON.stringify({ ...collect(), editingId: state.editingId }));
+      if (!ok && !draftWarned) {
+        draftWarned = true;
+        toast('Device storage full — this form (and its signatures) will be lost if the app closes. Submit it now.');
+      }
+      if (ok) draftWarned = false;
     }, 400);
   }
   function loadDraft() {
@@ -2056,7 +2080,15 @@
     setTimeout(() => { ptrReset(); ptrBusy = false; toast('Refreshed'); }, wait);
   }
 
+  // Show unexpected errors on screen so problems on a phone can be reported.
+  window.addEventListener('error', e => { if (e.message) toast('Error: ' + e.message); });
+  window.addEventListener('unhandledrejection', e => {
+    const m = e.reason && (e.reason.message || e.reason.code);
+    if (m) toast('Error: ' + m);
+  });
+
   function init() {
+    compactCache();
     bind();
     updateConditionals();
     // A shared link takes precedence over any local draft (sets formMode itself)
