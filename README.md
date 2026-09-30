@@ -1,9 +1,9 @@
 # Payment Approval Form (PAF) — Mobile Web App
 
 A mobile-first web app for filling out, signing, and exporting the Church
-**Payment Approval Form**. Runs in the browser and can sync transactions to
-the cloud with **Firebase** (optional). Without Firebase configured, it works
-fully offline with on-device storage (`localStorage`).
+**Payment Approval Form**. Runs in the browser and stores every transaction in
+the cloud with **Firebase Firestore**. Nothing is saved on the device, so a
+connection is needed to save.
 
 ## Features
 
@@ -42,12 +42,13 @@ fully offline with on-device storage (`localStorage`).
 
 ## Cloud sync with Firebase
 
-By default, forms are saved only on the device. To make transactions
-**device-independent** — saved in the cloud and visible from any device —
-connect a free Firebase project. **Everything** goes to **Firestore**:
-transaction records *and* receipt/document photos (stored inline in the same
-document — no Firebase Storage is used). The app still keeps a local cache and
-works offline, syncing when it can.
+The app is cloud-only and needs a Firebase project. **Everything** goes to
+**Firestore**: transaction records *and* receipt/document photos (stored inline
+in the same document; no Firebase Storage is used). Nothing is kept on the
+device. A step only moves forward once Firestore confirms the save; if it
+can't be saved, the app says so and the form stays as it is. On a form already
+in the cloud, signatures and photos are saved as soon as they're added. A new
+request is saved when it's submitted.
 
 > **Note on photos:** photos are stored inline and Firestore caps a document at
 > **1 MB**, so each upload is automatically compressed (stepping quality and
@@ -128,11 +129,10 @@ automatically.
 
 ## Privacy
 
-There is no server. Forms, signatures, and photos are stored only in your
-browser via `localStorage` and never leave your device. Clearing browser data
-removes saved forms. The only network requests are optional CDN fetches of
-`html2canvas` (for **Save image**) and `jsPDF` (for **Open PDF**); the browser's
-own **Print** works fully offline.
+Forms, signatures, and photos are stored in the project's Firestore database,
+and nothing is stored on the device. Anyone with access under the Firestore
+rules can read them. Other network requests are CDN fetches of the Firebase
+SDK, `html2canvas` (for **Save image**) and `jsPDF` (for **Open PDF**).
 
 ## Tech
 

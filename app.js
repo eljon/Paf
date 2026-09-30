@@ -1,12 +1,12 @@
 /* ================================================================
    Payment Approval Form — mobile web app
-   Vanilla JS, no build step. State persisted in localStorage.
+   Vanilla JS, no build step. All data lives in Firestore (nothing on the device).
    ================================================================ */
 (() => {
   'use strict';
 
-  const STORE_KEY = 'paf.records.v1';
-  const DRAFT_KEY = 'paf.draft.v1';
+  // Keys older versions used for on-device copies; cleared at launch.
+  const OLD_KEYS = ['paf.records.v1', 'paf.draft.v1'];
 
   /* ---------- Signature field definitions ---------- */
   const SIG_FIELDS = {
@@ -69,6 +69,7 @@
     { v: 20, notes: 'The Bishop cannot approve or sign off on a reimbursement or cash advance he is receiving: not as 1st or 2nd approver, and not on the cash-advance Bishop/President line (a counselor signs instead).' },
     { v: 21, notes: 'Fixed cloud sync and "Storage full" errors: photo limits now measure the real stored size so forms fit in Firestore, signatures are saved smaller, the device keeps a light copy without photos, and forms that fail to upload are kept and retried instead of disappearing.' },
     { v: 22, notes: 'Signatures and in-progress forms save reliably: device storage left full by older versions is freed as soon as the app opens, a warning appears if a form cannot be saved on the device, and unexpected errors are shown on screen.' },
+    { v: 23, notes: 'Cloud only: nothing is saved on the device any more (old on-device copies are cleared). A step only moves forward once Firestore confirms the save, otherwise you are told it was not saved. Signatures and photos on a form already in the cloud save to the cloud as soon as they are added.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -88,63 +89,14 @@
   /* ================================================================
      Persistence
      ================================================================ */
-  // Full records (with photos) live in memory. The on-device copy can't hold
-  // every photo (browsers cap it at ~5 MB), so when the cloud is on, synced
-  // records are cached without their photos; the cloud has the full copy.
-  // Records that haven't reached the cloud yet always keep their photos.
-  let memRecords = null;
-  const cloudOn = () => !!(window.Cloud && window.Cloud.enabled) || !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId);
-  function loadRecords() {
-    if (memRecords) return memRecords;
-    try { memRecords = JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
-    catch { memRecords = []; }
-    return memRecords;
-  }
-  function stripPhotos(r) {
-    return r._unsynced || !(r.receipts || []).length ? r : { ...r, receipts: [], _stripped: true };
-  }
-  function saveRecords(recs) {
-    memRecords = recs;
-    const write = list => { localStorage.setItem(STORE_KEY, JSON.stringify(list)); };
-    try { if (!cloudOn()) { write(recs); return true; } } catch {}
-    try { write(recs.map(stripPhotos)); return true; }
-    catch (e) {
-      toast('Device storage full — remove photos from unsent forms.');
-      return false;
-    }
-  }
-  // A cloud snapshot replaces the cache, but local edits that haven't synced
-  // yet are kept (and retried) so a failed upload never loses a record.
-  // Write to device storage; if it's full, drop cached photos (the cloud has
-  // them) and try once more. Returns false only if it still doesn't fit.
-  function lsSet(key, val) {
-    try { localStorage.setItem(key, val); return true; } catch {}
-    try {
-      if (cloudOn() && key !== STORE_KEY) {
-        localStorage.setItem(STORE_KEY, JSON.stringify(loadRecords().map(stripPhotos)));
-        localStorage.setItem(key, val);
-        return true;
-      }
-    } catch {}
-    return false;
-  }
-  // On launch, shrink a cache left full of photos by older versions.
-  function compactCache() {
-    if (!cloudOn()) return;
-    const recs = loadRecords();
-    if (recs.some(r => !r._unsynced && (r.receipts || []).length)) {
-      try { localStorage.setItem(STORE_KEY, JSON.stringify(recs.map(stripPhotos))); } catch {}
-    }
-  }
-
-  function mergeCloud(cloudRecs) {
-    const byId = new Map(cloudRecs.map(r => [r.id, r]));
-    const pending = loadRecords().filter(r => r._unsynced &&
-      (!byId.has(r.id) || (r.updatedAt || '') > (byId.get(r.id).updatedAt || '')));
-    pending.forEach(r => byId.set(r.id, r));
-    const merged = [...byId.values()].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-    saveRecords(merged);
-    return pending;
+  // Records come only from Firestore and are held in memory while the app is
+  // open. Nothing is written to the device.
+  let memRecords = [];
+  const cloudReady = () => !!(window.Cloud && window.Cloud.enabled);
+  function loadRecords() { return memRecords; }
+  function setRecords(recs) { memRecords = recs; }
+  function clearOldDeviceData() {
+    OLD_KEYS.forEach(k => { try { localStorage.removeItem(k); } catch {} });
   }
 
   /* ================================================================
@@ -563,51 +515,44 @@
     }
   }
 
-  // Build the current record, save to the local cache (+ cloud), return it.
-  function persist(status) {
+  // Build the current record and save it to Firestore. Resolves to the record
+  // once the cloud has it, or null if it couldn't be saved (nothing changes).
+  const SAVE_TIMEOUT = 20000;
+  let saving = null;
+  async function persist(status, { quiet = false } = {}) {
+    clearTimeout(autoSaveTimer);
+    if (!cloudReady()) {
+      if (!quiet) toast('Not connected to the cloud — nothing was saved. Check your connection and try again.');
+      return null;
+    }
+    if (saving) await saving.catch(() => {});           // one save at a time
+    if (!state.editingId) state.editingId = genId();    // a retry reuses the same id
     const payload = collect();
     if (status) payload.fields.status = status;
-    const recs = loadRecords();
     const now = new Date().toISOString();
-    const existing = state.editingId && recs.find(r => r.id === state.editingId);
-    let record;
-    if (existing) {
-      record = { ...existing, ...payload, updatedAt: now };
-    } else {
-      const id = state.editingId || genId();
-      record = { id, ...payload, createdAt: now, updatedAt: now };
-      state.editingId = id;
+    const existing = state.editingId && loadRecords().find(r => r.id === state.editingId);
+    const record = existing
+      ? { ...existing, ...payload, updatedAt: now }
+      : { id: state.editingId, ...payload, createdAt: now, updatedAt: now };
+    if (status) record.status = status;
+    if (docChars(record) > FIRESTORE_MAX) {
+      toast('Not saved — this form is too large for the cloud. Remove a photo and try again.');
+      return null;
     }
-    if (status) { record.status = status; if (form.elements['status']) form.elements['status'].value = status; }
-    delete record._stripped;
-    if (cloudOn()) record._unsynced = true;
-    saveRecords([record, ...recs.filter(r => r.id !== record.id)]);
-    clearDraft();
-    syncRecord(record);
-    return record;
-  }
-
-  // Upload one record to the cloud; on success drop its "unsynced" mark.
-  function syncRecord(record, quiet) {
-    if (!(window.Cloud && window.Cloud.enabled)) return Promise.resolve(false);
-    const { _unsynced, _stripped, ...clean } = record;
-    if (docChars(clean) > FIRESTORE_MAX) {
-      if (!quiet) toast('Saved on this device only — this form is too large for the cloud. Remove a photo.');
-      return Promise.resolve(false);
-    }
-    return window.Cloud.save(clean).then(() => {
-      const recs = loadRecords();
-      const cur = recs.find(r => r.id === record.id);
-      if (cur && cur.updatedAt === record.updatedAt) { delete cur._unsynced; saveRecords(recs); }
-      return true;
-    }).catch(err => {
+    const timeout = new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), SAVE_TIMEOUT));
+    saving = Promise.race([window.Cloud.save(record), timeout]);
+    try {
+      await saving;
+    } catch (err) {
       console.error('Cloud save failed', err);
-      if (!quiet) toast('Saved on this device only — cloud sync failed (' + (err && err.code || 'network') + '). It will retry.');
-      return false;
-    });
-  }
-  function retryUnsynced() {
-    loadRecords().filter(r => r._unsynced).forEach(r => syncRecord(r, true));
+      toast(err && err.code === 'timeout'
+        ? 'Couldn\'t reach the cloud — not saved. Check your connection and try again.'
+        : 'Not saved — cloud error (' + ((err && (err.code || err.message)) || 'unknown') + '). Try again.');
+      return null;
+    } finally { saving = null; }
+    if (status && form.elements['status']) form.elements['status'].value = status;
+    setRecords([record, ...loadRecords().filter(r => r.id !== record.id)]);
+    return record;
   }
 
   /* ---------- Required-field validation ---------- */
@@ -668,17 +613,17 @@
   }
 
   // Create → submit a new request (enters the "For Withdrawal" queue).
-  function submitRequest() {
+  async function submitRequest() {
     if (!validateStage()) return;
     ensureTxnNo();
-    persist('withdrawal');
+    if (!await persist('withdrawal')) return;
     toast('Sent for withdrawal');
     newForm();
     switchTab('queue');
   }
 
-  function advanceStage(newStatus, msg) {
-    persist(newStatus);
+  async function advanceStage(newStatus, msg) {
+    if (!await persist(newStatus)) return;
     toast(msg);
     switchTab('queue');
   }
@@ -703,11 +648,6 @@
   function openStage(id) {
     const rec = loadRecords().find(r => r.id === id);
     if (!rec) return;
-    if (rec._stripped) {                              // photos still loading
-      pendingShareId = id;
-      toast(navigator.onLine ? 'Loading from the cloud…' : 'Connect to the internet to open this form');
-      return;
-    }
     applyRecord(rec);
     state.editingId = id;
     const st = rec.status || 'withdrawal';
@@ -1082,32 +1022,17 @@
   /* ================================================================
      Draft autosave
      ================================================================ */
-  let draftTimer, draftWarned = false;
+  // A form already in the cloud saves each change (signatures, photos, fields)
+  // straight to the cloud. A new request is only saved when it's submitted.
+  let autoSaveTimer;
   function saveDraft() {
-    clearTimeout(draftTimer);
-    draftTimer = setTimeout(() => {
-      const ok = lsSet(DRAFT_KEY, JSON.stringify({ ...collect(), editingId: state.editingId }));
-      if (!ok && !draftWarned) {
-        draftWarned = true;
-        toast('Device storage full — this form (and its signatures) will be lost if the app closes. Submit it now.');
-      }
-      if (ok) draftWarned = false;
-    }, 400);
+    clearTimeout(autoSaveTimer);
+    if (!state.editingId || formMode === 'create' || formMode === 'wizard') return;
+    const id = state.editingId;
+    autoSaveTimer = setTimeout(() => {
+      if (state.editingId === id) persist(undefined, { quiet: true });
+    }, 1500);
   }
-  function loadDraft() {
-    try {
-      const d = JSON.parse(localStorage.getItem(DRAFT_KEY));
-      if (d && (Object.values(d.fields || {}).some(v => v) ||
-                (d.receipts || []).length || Object.keys(d.signatures || {}).length)) {
-        applyRecord(d);
-        state.editingId = d.editingId || null;
-        const st = (d.fields && d.fields.status) || '';
-        if (st && st !== 'create') { formMode = st; if (form.elements['status']) form.elements['status'].value = st; showDetails(); }
-        else resumeStage();   // land on the right question / details step
-      }
-    } catch {}
-  }
-  function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch {} }
 
   /* ================================================================
      Reset / new
@@ -1121,7 +1046,7 @@
     renderReceipts();
     updateConditionals();
     computeExcess();
-    clearDraft();
+    clearTimeout(autoSaveTimer);
     if (toastMsg) toast('New form');
   }
 
@@ -1243,11 +1168,6 @@
     const recs = loadRecords();
     const rec = recs.find(r => r.id === id);
     if (!rec && act !== 'del') return;
-    // A cached copy without photos must not be shown or copied as complete.
-    if (rec && rec._stripped && act !== 'del' && act !== 'open' && act !== 'stage') {
-      toast('Still loading photos from the cloud. Try again in a moment.');
-      return;
-    }
     switch (act) {
       case 'open':
       case 'stage':
@@ -1275,12 +1195,15 @@
       }
       case 'del':
         if (confirm('Delete this form?')) {
-          saveRecords(recs.filter(r => r.id !== id));
-          renderHistory($('#historySearch').value);
-          if (window.Cloud && window.Cloud.enabled) {
-            window.Cloud.remove(id).catch(err => console.error('Cloud delete failed', err));
-          }
-          toast('Deleted');
+          if (!cloudReady()) { toast('Not connected to the cloud — nothing was deleted.'); break; }
+          window.Cloud.remove(id).then(() => {
+            setRecords(loadRecords().filter(r => r.id !== id));
+            renderHistory($('#historySearch').value);
+            toast('Deleted');
+          }).catch(err => {
+            console.error('Cloud delete failed', err);
+            toast('Not deleted — cloud error. Try again.');
+          });
         }
         break;
     }
@@ -1640,7 +1563,7 @@
     // this exact stage and works on the same record. Fall back to a
     // self-contained snapshot when nothing is saved yet or there's no cloud.
     if (state.editingId && window.Cloud && window.Cloud.enabled) {
-      persist(st || undefined);                       // push the latest state first
+      if (!await persist(st || undefined)) return;    // push the latest state first
       url = location.origin + location.pathname + '#id=' + state.editingId;
     } else {
       const out = buildShareURL();
@@ -1943,8 +1866,7 @@
     });
     $('#stageSummary').addEventListener('change', (e) => {
       if (e.target.id === 'stageAmount' && state.editingId) {
-        persist(form.elements['status'].value || undefined);
-        toast('Amount updated');
+        persist(form.elements['status'].value || undefined).then(r => { if (r) toast('Amount updated'); });
       }
     });
 
@@ -1999,7 +1921,7 @@
     const start = () => {
       if (!window.Cloud || !window.Cloud.enabled) return;
       window.Cloud.subscribe(recs => {
-        mergeCloud(recs);                              // mirror to local cache
+        setRecords(recs);                              // live cloud data
         // A shared #id= link may have been waiting for the record to sync in.
         if (pendingShareId) {
           const rec = loadRecords().find(r => r.id === pendingShareId);
@@ -2008,10 +1930,10 @@
         refreshCurrentView();                          // live-update queue/history
       });
     };
-    const go = () => { start(); retryUnsynced(); };
-    if (window.Cloud && window.Cloud.enabled) go();
-    else window.addEventListener('cloud-ready', go, { once: true });
-    window.addEventListener('online', retryUnsynced);
+    if (cloudReady()) start();
+    else window.addEventListener('cloud-ready', start, { once: true });
+    window.addEventListener('cloud-failed', () =>
+      toast('Can\'t connect to the cloud. Check your connection and reopen the app.'), { once: true });
   }
 
   // Re-render whichever list view is showing (queue or history).
@@ -2072,7 +1994,7 @@
     try {
       if (window.Cloud && window.Cloud.enabled && window.Cloud.refresh) {
         const recs = await window.Cloud.refresh();
-        if (Array.isArray(recs)) { mergeCloud(recs); retryUnsynced(); }
+        if (Array.isArray(recs)) setRecords(recs);
       }
     } catch (e) { console.error('Refresh failed', e); }
     refreshCurrentView();
@@ -2088,11 +2010,11 @@
   });
 
   function init() {
-    compactCache();
+    clearOldDeviceData();
     bind();
     updateConditionals();
     // A shared link takes precedence over any local draft (sets formMode itself)
-    if (!importFromHash()) loadDraft();
+    importFromHash();
     switchTab('form');
     setupCloud();
     handleVersionRoute();   // open version history if the URL is /v<number>

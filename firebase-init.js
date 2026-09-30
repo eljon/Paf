@@ -6,9 +6,9 @@
    - No Firebase Storage is used.
    - No authentication (open access — protect via project rules).
 
-   The Firebase SDK is only fetched when window.FIREBASE_CONFIG is
-   filled in. Otherwise the app uses on-device storage and never
-   touches the network — window.Cloud.enabled stays false.
+   Everything is stored in Firestore; nothing is kept on the device.
+   Without window.FIREBASE_CONFIG (or if Firebase can't load) the app
+   fires "cloud-failed" and refuses to save.
    ============================================================ */
 const cfg = window.FIREBASE_CONFIG || {};
 const configured = !!(cfg.apiKey && cfg.projectId);
@@ -63,7 +63,11 @@ if (configured) {
     window.dispatchEvent(new Event("cloud-ready"));
     console.info("[Cloud] Firebase enabled.");
   } catch (err) {
-    console.error("[Cloud] Firebase init failed — using on-device storage:", err);
+    console.error("[Cloud] Firebase init failed:", err);
     window.Cloud = { enabled: false };
+    window.dispatchEvent(new Event("cloud-failed"));
   }
+} else {
+  // The app is cloud-only; without a config nothing can be saved.
+  window.addEventListener("DOMContentLoaded", () => window.dispatchEvent(new Event("cloud-failed")));
 }
