@@ -7,7 +7,7 @@
   <meta name="description" content="Fill out, sign, and export the Church Payment Approval Form (PAF) from your phone." />
   <title>Payment Approval Form</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23007aff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z'/><path d='M14 3v5h5'/><path d='M9 13h6'/><path d='M9 17h6'/></svg>" />
 </head>
 <body>
@@ -153,6 +153,12 @@
             </label>
           </section>
 
+          <!-- ===== Uploaded documents (read-only, every stage after upload) ===== -->
+          <section class="card" id="approvalDocsCard" hidden>
+            <h2 class="card__title">Uploaded documents</h2>
+            <div class="receipts" id="approvalDocs"></div>
+          </section>
+
           <!-- ================= ACKNOWLEDGEMENT ================= -->
           <div id="ackContent" hidden>
             <section class="card" id="reimbursementCard" hidden>
@@ -243,11 +249,6 @@
             <input type="hidden" id="approver1Date" name="approver1Date" />
             <input type="hidden" id="approver2Name" name="approver2Name" />
             <input type="hidden" id="approver2Date" name="approver2Date" />
-
-            <section class="card" id="approvalDocsCard" hidden>
-              <h2 class="card__title">Uploaded documents</h2>
-              <div class="receipts" id="approvalDocs"></div>
-            </section>
 
             <section class="card">
               <h2 class="card__title">Approvals <span class="muted">(both required)</span></h2>
@@ -388,8 +389,8 @@
   <!-- Toast -->
   <div class="toast" id="toast" hidden></div>
 
-  <script src="firebase-config.js?v=23"></script>
-  <script type="module" src="firebase-init.js?v=23"></script>
-  <script src="app.js?v=23"></script>
+  <script src="firebase-config.js?v=24"></script>
+  <script type="module" src="firebase-init.js?v=24"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

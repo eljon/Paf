@@ -70,6 +70,7 @@
     { v: 21, notes: 'Fixed cloud sync and "Storage full" errors: photo limits now measure the real stored size so forms fit in Firestore, signatures are saved smaller, the device keeps a light copy without photos, and forms that fail to upload are kept and retried instead of disappearing.' },
     { v: 22, notes: 'Signatures and in-progress forms save reliably: device storage left full by older versions is freed as soon as the app opens, a warning appears if a form cannot be saved on the device, and unexpected errors are shown on screen.' },
     { v: 23, notes: 'Cloud only: nothing is saved on the device any more (old on-device copies are cleared). A step only moves forward once Firestore confirms the save, otherwise you are told it was not saved. Signatures and photos on a form already in the cloud save to the cloud as soon as they are added.' },
+    { v: 24, notes: 'Uploaded documents are visible at every step after upload (withdrawal, acknowledgement, approval, recording and done), not just during approval. Tap one to view it larger or download it.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -204,12 +205,13 @@
   function ackSigned() { return !!state.signatures[ackKind().sig]; }
   function bothApproversSigned() { return !!(state.signatures.approver1 && state.signatures.approver2); }
 
-  // Read-only view of uploaded documents shown to approvers.
+  // Read-only view of uploaded documents, shown at every stage once there are
+  // any (except where the editable upload card is already showing them).
   function renderApprovalDocs() {
     const card = $('#approvalDocsCard');
     const grid = $('#approvalDocs');
     const docs = state.receipts || [];
-    card.hidden = docs.length === 0;
+    card.hidden = !isStage() || !$('#receiptsCard').hidden || docs.length === 0;
     grid.innerHTML = docs.map((src, i) =>
       `<button type="button" class="receipt" data-i="${i}"><img src="${src}" alt="Document ${i + 1}"></button>`
     ).join('');
@@ -358,8 +360,9 @@
     } else {
       renderStageSummary();
       if (formMode === 'acknowledgement') renderAckCards();
-      if (formMode === 'approval') { updateApproverButtons(); renderApprovalDocs(); }
+      if (formMode === 'approval') updateApproverButtons();
     }
+    renderApprovalDocs();
     renderStageActions();
     $('#btnShare').hidden = currentTab !== 'form';
     window.scrollTo(0, 0);
@@ -1017,6 +1020,7 @@
       grid.appendChild(el);
     });
     if (formMode === 'documents') renderStageActions();  // enable/disable Submit documents
+    renderApprovalDocs();
   }
 
   /* ================================================================
