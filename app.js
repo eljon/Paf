@@ -67,6 +67,7 @@
     { v: 18, notes: 'Form output: reimbursement and cash-advance signatures render at full size; checkbox marks centered in their boxes; fixed scattered letter spacing in exported PDF/images on iPhone.' },
     { v: 19, notes: 'The Bishop can no longer be the 1st approver when he is the payee or the recipient of a reimbursement or cash advance; name matching is more forgiving (e.g. "Bishop Eljon Serrano").' },
     { v: 20, notes: 'The Bishop cannot approve or sign off on a reimbursement or cash advance he is receiving: not as 1st or 2nd approver, and not on the cash-advance Bishop/President line (a counselor signs instead).' },
+    { v: 21, notes: 'Fixed cloud sync and "Storage full" errors: photo limits now measure the real stored size so forms fit in Firestore, signatures are saved smaller, the device keeps a light copy without photos, and forms that fail to upload are kept and retried instead of disappearing.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -86,18 +87,41 @@
   /* ================================================================
      Persistence
      ================================================================ */
+  // Full records (with photos) live in memory. The on-device copy can't hold
+  // every photo (browsers cap it at ~5 MB), so when the cloud is on, synced
+  // records are cached without their photos; the cloud has the full copy.
+  // Records that haven't reached the cloud yet always keep their photos.
+  let memRecords = null;
+  const cloudOn = () => !!(window.Cloud && window.Cloud.enabled) || !!(window.FIREBASE_CONFIG && window.FIREBASE_CONFIG.projectId);
   function loadRecords() {
-    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
-    catch { return []; }
+    if (memRecords) return memRecords;
+    try { memRecords = JSON.parse(localStorage.getItem(STORE_KEY)) || []; }
+    catch { memRecords = []; }
+    return memRecords;
+  }
+  function stripPhotos(r) {
+    return r._unsynced || !(r.receipts || []).length ? r : { ...r, receipts: [], _stripped: true };
   }
   function saveRecords(recs) {
-    try {
-      localStorage.setItem(STORE_KEY, JSON.stringify(recs));
-      return true;
-    } catch (e) {
-      toast('Storage full — remove old forms or photos.');
+    memRecords = recs;
+    const write = list => { localStorage.setItem(STORE_KEY, JSON.stringify(list)); };
+    try { if (!cloudOn()) { write(recs); return true; } } catch {}
+    try { write(recs.map(stripPhotos)); return true; }
+    catch (e) {
+      toast('Device storage full — remove photos from unsent forms.');
       return false;
     }
+  }
+  // A cloud snapshot replaces the cache, but local edits that haven't synced
+  // yet are kept (and retried) so a failed upload never loses a record.
+  function mergeCloud(cloudRecs) {
+    const byId = new Map(cloudRecs.map(r => [r.id, r]));
+    const pending = loadRecords().filter(r => r._unsynced &&
+      (!byId.has(r.id) || (r.updatedAt || '') > (byId.get(r.id).updatedAt || '')));
+    pending.forEach(r => byId.set(r.id, r));
+    const merged = [...byId.values()].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    saveRecords(merged);
+    return pending;
   }
 
   /* ================================================================
@@ -532,15 +556,35 @@
       state.editingId = id;
     }
     if (status) { record.status = status; if (form.elements['status']) form.elements['status'].value = status; }
+    delete record._stripped;
+    if (cloudOn()) record._unsynced = true;
     saveRecords([record, ...recs.filter(r => r.id !== record.id)]);
     clearDraft();
-    if (window.Cloud && window.Cloud.enabled) {
-      window.Cloud.save(record).catch(err => {
-        console.error('Cloud save failed', err);
-        toast('Saved on device — cloud sync failed (photos may be too large)');
-      });
-    }
+    syncRecord(record);
     return record;
+  }
+
+  // Upload one record to the cloud; on success drop its "unsynced" mark.
+  function syncRecord(record, quiet) {
+    if (!(window.Cloud && window.Cloud.enabled)) return Promise.resolve(false);
+    const { _unsynced, _stripped, ...clean } = record;
+    if (docChars(clean) > FIRESTORE_MAX) {
+      if (!quiet) toast('Saved on this device only — this form is too large for the cloud. Remove a photo.');
+      return Promise.resolve(false);
+    }
+    return window.Cloud.save(clean).then(() => {
+      const recs = loadRecords();
+      const cur = recs.find(r => r.id === record.id);
+      if (cur && cur.updatedAt === record.updatedAt) { delete cur._unsynced; saveRecords(recs); }
+      return true;
+    }).catch(err => {
+      console.error('Cloud save failed', err);
+      if (!quiet) toast('Saved on this device only — cloud sync failed (' + (err && err.code || 'network') + '). It will retry.');
+      return false;
+    });
+  }
+  function retryUnsynced() {
+    loadRecords().filter(r => r._unsynced).forEach(r => syncRecord(r, true));
   }
 
   /* ---------- Required-field validation ---------- */
@@ -636,6 +680,11 @@
   function openStage(id) {
     const rec = loadRecords().find(r => r.id === id);
     if (!rec) return;
+    if (rec._stripped) {                              // photos still loading
+      pendingShareId = id;
+      toast(navigator.onLine ? 'Loading from the cloud…' : 'Connect to the internet to open this form');
+      return;
+    }
     applyRecord(rec);
     state.editingId = id;
     const st = rec.status || 'withdrawal';
@@ -910,9 +959,10 @@
     top = Math.max(0, top - pad); left = Math.max(0, left - pad);
     right = Math.min(w, right + pad); bottom = Math.min(h, bottom + pad);
     const cw = right - left, ch = bottom - top;
+    const k = Math.min(1, 480 / Math.max(cw, ch));   // cap size to keep forms small
     const out = document.createElement('canvas');
-    out.width = cw; out.height = ch;
-    out.getContext('2d').drawImage(sigCanvas, left, top, cw, ch, 0, 0, cw, ch);
+    out.width = Math.round(cw * k); out.height = Math.round(ch * k);
+    out.getContext('2d').drawImage(sigCanvas, left, top, cw, ch, 0, 0, out.width, out.height);
     return out.toDataURL('image/png');
   }
 
@@ -922,25 +972,23 @@
   // Photos live inline in the Firestore document, which is capped at ~1 MB.
   // Keep the whole document (all photos + fields + signatures) under this, and
   // no single photo above the per-photo ceiling, so uploads always fit.
-  const DOC_BUDGET = 850 * 1024;    // headroom under Firestore's 1 MB doc limit
-  const PHOTO_MAX  = 320 * 1024;    // largest a single stored photo may be
-  const PHOTO_FLOOR = 70 * 1024;    // if less room than this remains, stop adding
+  // Sizes are in stored characters (base64), which is what Firestore counts.
+  const FIRESTORE_MAX = 1000 * 1000;  // Firestore's hard limit is 1,048,576 bytes
+  const SIG_RESERVE = 160 * 1000;     // room kept for signatures still to come
+  const DOC_BUDGET = FIRESTORE_MAX - SIG_RESERVE;
+  const PHOTO_MAX  = 300 * 1000;      // largest a single stored photo may be
+  const PHOTO_FLOOR = 60 * 1000;      // if less room than this remains, stop adding
+  function docChars(obj) { return JSON.stringify(obj).length; }
 
-  // Byte size of a data: URI's payload.
-  function dataUrlBytes(u) {
-    const i = u.indexOf(',');
-    const b64 = i >= 0 ? u.slice(i + 1) : u;
-    const pad = b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0;
-    return Math.floor(b64.length * 3 / 4) - pad;
-  }
-  function receiptsBytes() { return state.receipts.reduce((n, r) => n + dataUrlBytes(r), 0); }
+  // Room left for photos: the budget minus everything already in the form.
+  function roomForPhotos() { return DOC_BUDGET - docChars(collect()); }
 
   // Compress an image, stepping quality/size down until it fits maxBytes.
   async function compressToLimit(file, maxBytes) {
     const steps = [[1100, 0.6], [1100, 0.5], [1000, 0.48], [900, 0.45],
                    [800, 0.42], [700, 0.4], [600, 0.38], [500, 0.36]];
     let out = await compressImage(file, steps[0][0], steps[0][1]);
-    for (let i = 1; i < steps.length && dataUrlBytes(out) > maxBytes; i++) {
+    for (let i = 1; i < steps.length && out.length > maxBytes; i++) {
       out = await compressImage(file, steps[i][0], steps[i][1]);
     }
     return out;
@@ -951,13 +999,13 @@
     if (!list.length) return;
     let added = 0, blocked = false;
     for (const file of list) {
-      const remaining = DOC_BUDGET - receiptsBytes();
+      const remaining = roomForPhotos();
       if (remaining < PHOTO_FLOOR) { blocked = true; break; }
       let dataURL;
       try { dataURL = await compressToLimit(file, Math.min(PHOTO_MAX, remaining)); }
       catch { continue; }
       // Only reject for room if there's already at least one photo saved.
-      if (dataUrlBytes(dataURL) > remaining && state.receipts.length) { blocked = true; break; }
+      if (dataURL.length > remaining && state.receipts.length) { blocked = true; break; }
       state.receipts.push(dataURL);
       $('#receiptsCard').classList.remove('is-invalid');
       renderReceipts();
@@ -1171,6 +1219,11 @@
     const recs = loadRecords();
     const rec = recs.find(r => r.id === id);
     if (!rec && act !== 'del') return;
+    // A cached copy without photos must not be shown or copied as complete.
+    if (rec && rec._stripped && act !== 'del' && act !== 'open' && act !== 'stage') {
+      toast('Still loading photos from the cloud. Try again in a moment.');
+      return;
+    }
     switch (act) {
       case 'open':
       case 'stage':
@@ -1922,7 +1975,7 @@
     const start = () => {
       if (!window.Cloud || !window.Cloud.enabled) return;
       window.Cloud.subscribe(recs => {
-        saveRecords(recs);                             // mirror to local cache
+        mergeCloud(recs);                              // mirror to local cache
         // A shared #id= link may have been waiting for the record to sync in.
         if (pendingShareId) {
           const rec = loadRecords().find(r => r.id === pendingShareId);
@@ -1931,8 +1984,10 @@
         refreshCurrentView();                          // live-update queue/history
       });
     };
-    if (window.Cloud && window.Cloud.enabled) start();
-    else window.addEventListener('cloud-ready', start, { once: true });
+    const go = () => { start(); retryUnsynced(); };
+    if (window.Cloud && window.Cloud.enabled) go();
+    else window.addEventListener('cloud-ready', go, { once: true });
+    window.addEventListener('online', retryUnsynced);
   }
 
   // Re-render whichever list view is showing (queue or history).
@@ -1993,7 +2048,7 @@
     try {
       if (window.Cloud && window.Cloud.enabled && window.Cloud.refresh) {
         const recs = await window.Cloud.refresh();
-        if (Array.isArray(recs)) saveRecords(recs);
+        if (Array.isArray(recs)) { mergeCloud(recs); retryUnsynced(); }
       }
     } catch (e) { console.error('Refresh failed', e); }
     refreshCurrentView();
