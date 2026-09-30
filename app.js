@@ -65,6 +65,7 @@
     { v: 16, notes: 'Cache-busting so each new version loads fresh (fixes an old cached build opening documents as a raw image).' },
     { v: 17, notes: 'Removed the Mark approved button — the two approver signatures complete the approval automatically.' },
     { v: 18, notes: 'Form output: reimbursement and cash-advance signatures render at full size; checkbox marks centered in their boxes; fixed scattered letter spacing in exported PDF/images on iPhone.' },
+    { v: 19, notes: 'The Bishop can no longer be the 1st approver when he is the payee or the recipient of a reimbursement or cash advance; name matching is more forgiving (e.g. "Bishop Eljon Serrano").' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -236,11 +237,32 @@
   const COUNSELORS = ['John Sombrero', 'John Magno'];
   const EXTRA_APPROVER = 'John Carlo Eduria';
 
-  // Bishop is the payee on a reimbursement/cash advance → he can't approve his own.
+  // True when a typed name refers to the Bishop ("Eljon Serrano", "Bishop Eljon
+  // Serrano", "Serrano, Eljon", or just "Bishop"), ignoring case and punctuation.
+  function isBishopName(v) {
+    const words = String(v || '').toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+    if (!words.length) return false;
+    if (words.length === 1 && words[0] === 'bishop') return true;
+    return BISHOP.toLowerCase().split(/\s+/).every(w => words.includes(w));
+  }
+
+  // The Bishop is receiving the reimbursement / cash advance (as payee or as the
+  // named recipient) → he can't be the 1st approver on his own request.
   function isSelfApprovalCase() {
     const t = radioVal('txnType');
-    const payee = (form.elements['payee'].value || '').trim().toLowerCase();
-    return (t === 'Reimbursement' || t === 'Cash Advance') && payee === BISHOP.toLowerCase();
+    if (t !== 'Reimbursement' && t !== 'Cash Advance') return false;
+    const el = n => form.elements[n] ? form.elements[n].value : '';
+    const recipient = t === 'Reimbursement' ? el('reimburseName') : el('caReceiveName');
+    return isBishopName(el('payee')) || isBishopName(recipient);
+  }
+
+  // If the Bishop already signed as 1st approver on his own request, void it.
+  function enforceBishopNotFirstApprover() {
+    if (!isSelfApprovalCase() || !isBishopName(form.elements['approver1Name'].value)) return false;
+    form.elements['approver1Name'].value = '';
+    if (form.elements['approver1Date']) form.elements['approver1Date'].value = '';
+    delete state.signatures.approver1;
+    return true;
   }
 
   function radioVal(name) {
@@ -528,6 +550,8 @@
       need(state.receipts.length > 0, 'At least one document', '#receiptsCard');
     } else if (formMode === 'approval') {
       need(!!state.signatures.approver1, '1st approver signature', '#btnApprover1');
+      need(!(isSelfApprovalCase() && isBishopName(f.approver1Name)),
+        '1st approver other than the Bishop', '#btnApprover1');
       need(!!state.signatures.approver2, '2nd approver signature', '#btnApprover2');
     }
     return miss;
@@ -592,6 +616,11 @@
   }
 
   function updateApproverButtons() {
+    if (enforceBishopNotFirstApprover()) {
+      renderSignatures();
+      saveDraft();
+      toast('The Bishop is receiving this payment, so a counselor must be the 1st approver');
+    }
     const special = isSelfApprovalCase();
     const n1 = form.elements['approver1Name'] ? form.elements['approver1Name'].value : '';
     const n2 = form.elements['approver2Name'] ? form.elements['approver2Name'].value : '';
@@ -1632,6 +1661,7 @@
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
       if (e.target.name === 'amount' || e.target.name === 'caSpent') computeExcess();
       if (e.target.name === 'payee') { if (formMode === 'approval') updateApproverButtons(); syncRequestorSame(); }
+      if ((e.target.name === 'reimburseName' || e.target.name === 'caReceiveName') && formMode === 'approval') updateApproverButtons();
       saveDraft();
     });
     form.addEventListener('change', (e) => {
