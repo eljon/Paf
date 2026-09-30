@@ -66,6 +66,7 @@
     { v: 17, notes: 'Removed the Mark approved button — the two approver signatures complete the approval automatically.' },
     { v: 18, notes: 'Form output: reimbursement and cash-advance signatures render at full size; checkbox marks centered in their boxes; fixed scattered letter spacing in exported PDF/images on iPhone.' },
     { v: 19, notes: 'The Bishop can no longer be the 1st approver when he is the payee or the recipient of a reimbursement or cash advance; name matching is more forgiving (e.g. "Bishop Eljon Serrano").' },
+    { v: 20, notes: 'The Bishop cannot approve or sign off on a reimbursement or cash advance he is receiving: not as 1st or 2nd approver, and not on the cash-advance Bishop/President line (a counselor signs instead).' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -256,13 +257,36 @@
     return isBishopName(el('payee')) || isBishopName(recipient);
   }
 
-  // If the Bishop already signed as 1st approver on his own request, void it.
-  function enforceBishopNotFirstApprover() {
-    if (!isSelfApprovalCase() || !isBishopName(form.elements['approver1Name'].value)) return false;
-    form.elements['approver1Name'].value = '';
-    if (form.elements['approver1Date']) form.elements['approver1Date'].value = '';
-    delete state.signatures.approver1;
-    return true;
+  // Sign-offs the Bishop can't give on a payment he is receiving.
+  const BISHOP_BLOCKED_SIGS = ['approver1', 'approver2', 'caBishop'];
+  const sigName = key => { const el = form.elements[key + 'Name']; return el ? el.value : ''; };
+  // Blocked when the Bishop receives the payment and the signer is (or would
+  // default to) the Bishop. The 1st approver defaults to the Bishop; the
+  // cash-advance Bishop/President line needs a named counselor instead.
+  function bishopBlockedFor(key) {
+    if (!BISHOP_BLOCKED_SIGS.includes(key) || !isSelfApprovalCase()) return false;
+    const n = sigName(key);
+    return isBishopName(n) || (key === 'caBishop' && !n.trim());
+  }
+
+  // Void any approval the Bishop already gave on a payment he is receiving.
+  function enforceBishopNotApprover() {
+    if (!isSelfApprovalCase()) return false;
+    let voided = false;
+    BISHOP_BLOCKED_SIGS.forEach(key => {
+      if (!state.signatures[key] || !isBishopName(sigName(key))) return;
+      form.elements[key + 'Name'].value = '';
+      if (form.elements[SIG_DATE[key]]) form.elements[SIG_DATE[key]].value = '';
+      delete state.signatures[key];
+      voided = true;
+    });
+    return voided;
+  }
+  function checkBishopRule() {
+    if (!enforceBishopNotApprover()) return;
+    renderSignatures();
+    saveDraft();
+    toast('The Bishop is receiving this payment, so he can\'t approve it. A counselor must sign.');
   }
 
   function radioVal(name) {
@@ -550,9 +574,14 @@
       need(state.receipts.length > 0, 'At least one document', '#receiptsCard');
     } else if (formMode === 'approval') {
       need(!!state.signatures.approver1, '1st approver signature', '#btnApprover1');
-      need(!(isSelfApprovalCase() && isBishopName(f.approver1Name)),
-        '1st approver other than the Bishop', '#btnApprover1');
       need(!!state.signatures.approver2, '2nd approver signature', '#btnApprover2');
+    }
+    // The Bishop can't approve a reimbursement / cash advance he is receiving.
+    if (isSelfApprovalCase()) {
+      if (isBishopName(f.approver1Name)) need(false, '1st approver other than the Bishop', '#btnApprover1');
+      if (isBishopName(f.approver2Name)) need(false, '2nd approver other than the Bishop', '#btnApprover2');
+      if (state.signatures.caBishop && bishopBlockedFor('caBishop'))
+        need(false, 'Counselor name for Bishop/President sign-off', '#caBishopName');
     }
     return miss;
   }
@@ -616,11 +645,7 @@
   }
 
   function updateApproverButtons() {
-    if (enforceBishopNotFirstApprover()) {
-      renderSignatures();
-      saveDraft();
-      toast('The Bishop is receiving this payment, so a counselor must be the 1st approver');
-    }
+    checkBishopRule();
     const special = isSelfApprovalCase();
     const n1 = form.elements['approver1Name'] ? form.elements['approver1Name'].value : '';
     const n2 = form.elements['approver2Name'] ? form.elements['approver2Name'].value : '';
@@ -778,6 +803,12 @@
   let sigCtx, sigDrawing = false, sigDirty = false, sigLast = null;
 
   function openSigModal(key) {
+    if (bishopBlockedFor(key)) {
+      toast('The Bishop is receiving this payment, so he can\'t sign this. Enter a counselor\'s name first.');
+      const el = form.elements[key + 'Name'];
+      if (key === 'caBishop' && el) { el.value = ''; el.classList.add('is-invalid'); el.focus(); }
+      return;
+    }
     state.activeSig = key;
     $('#sigModalTitle').textContent = SIG_FIELDS[key] || 'Signature';
     sigModal.hidden = false;
@@ -1661,6 +1692,7 @@
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
       if (e.target.name === 'amount' || e.target.name === 'caSpent') computeExcess();
       if (e.target.name === 'payee') { if (formMode === 'approval') updateApproverButtons(); syncRequestorSame(); }
+      if (['payee', 'reimburseName', 'caReceiveName', 'caBishopName'].includes(e.target.name)) checkBishopRule();
       if ((e.target.name === 'reimburseName' || e.target.name === 'caReceiveName') && formMode === 'approval') updateApproverButtons();
       saveDraft();
     });
