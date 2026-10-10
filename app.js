@@ -71,6 +71,7 @@
     { v: 22, notes: 'Signatures and in-progress forms save reliably: device storage left full by older versions is freed as soon as the app opens, a warning appears if a form cannot be saved on the device, and unexpected errors are shown on screen.' },
     { v: 23, notes: 'Cloud only: nothing is saved on the device any more (old on-device copies are cleared). A step only moves forward once Firestore confirms the save, otherwise you are told it was not saved. Signatures and photos on a form already in the cloud save to the cloud as soon as they are added.' },
     { v: 24, notes: 'Uploaded documents are visible at every step after upload (withdrawal, acknowledgement, approval, recording and done), not just during approval. Tap one to view it larger or download it.' },
+    { v: 25, notes: 'Fast offering: the member receiving assistance now signs at acknowledgement for every transaction type (including reimbursements and cash advances), and the signature prints on the fast offering signature line.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -197,10 +198,13 @@
     if (radioVal('category') === 'Fast Offering') return { card: 'ackFoCard', sig: 'foMember' };
     return { card: 'ackGenericCard', sig: 'acknowledge' };
   }
+  // Fast offering always needs the member's signature, even when the money
+  // itself is a reimbursement or cash advance acknowledged on its own card.
+  const needsFoMember = () => radioVal('category') === 'Fast Offering';
   function renderAckCards() {
     const which = ackKind().card;
     ['reimbursementCard', 'cashAdvanceCard', 'ackFoCard', 'ackGenericCard']
-      .forEach(id => { $('#' + id).hidden = id !== which; });
+      .forEach(id => { $('#' + id).hidden = id !== which && !(id === 'ackFoCard' && needsFoMember()); });
   }
   function ackSigned() { return !!state.signatures[ackKind().sig]; }
   function bothApproversSigned() { return !!(state.signatures.approver1 && state.signatures.approver2); }
@@ -585,6 +589,8 @@
       else if (kind === 'caReceive') need(filled(f.caReceiveName), 'Recipient name', '#caReceiveName');
       else if (kind === 'acknowledge') need(filled(f.ackName), 'Received by', '#ackName');
       need(!!state.signatures[kind], 'Acknowledgement signature', `.sigpad[data-sig="${kind}"]`);
+      if (kind !== 'foMember' && needsFoMember())
+        need(!!state.signatures.foMember, 'Signature of member receiving assistance', '.sigpad[data-sig="foMember"]');
     } else if (formMode === 'documents') {
       need(state.receipts.length > 0, 'At least one document', '#receiptsCard');
     } else if (formMode === 'approval') {
