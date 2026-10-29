@@ -502,6 +502,7 @@ body.kbd-open .tabbar{display:none;}
 .stage-summary__amount{font-size:20px;font-weight:700;color:var(--label);float:right;}
 .stage-summary__meta{font-size:14px;color:var(--label-2);margin-top:4px;clear:both;}
 .stage-summary__purpose{font-size:14px;color:var(--label);margin-top:8px;}
+.stage-summary__edit{display:block;margin-top:12px;background:var(--fill, rgba(120,120,128,.12));color:var(--blue);font-weight:600;}
 .stage-amount{margin-top:14px;}
 .stage-amount label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:var(--label);}
 

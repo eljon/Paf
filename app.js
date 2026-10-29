@@ -73,6 +73,7 @@
     { v: 24, notes: 'Uploaded documents are visible at every step after upload (withdrawal, acknowledgement, approval, recording and done), not just during approval. Tap one to view it larger or download it.' },
     { v: 25, notes: 'Fast offering: the member receiving assistance now signs at acknowledgement for every transaction type (including reimbursements and cash advances), and the signature prints on the fast offering signature line.' },
     { v: 26, notes: 'Every step after submission shows the whole form for editing: transaction type and category, details, fast offering, requestor, documents, and each earlier step (acknowledgement, approvals). Changes save to the cloud automatically.' },
+    { v: 27, notes: 'Each step shows only its own section again. An Edit button at the top opens the whole form (type, category, details, fast offering, requestor, documents and earlier steps) for changes; Done editing returns to the step. Changes save to the cloud automatically.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -242,6 +243,7 @@
   // True once the open form has reached (or passed) the given stage.
   const reached = st => STAGES.indexOf(formMode) >= STAGES.indexOf(st);
   let editStage = null;   // stage to return to after changing a wizard answer
+  let editAll = false;    // Edit tapped: show the whole form, not just this step
 
   /* Approver roster */
   const BISHOP = 'Eljon Serrano';
@@ -357,24 +359,26 @@
     clearInvalid();
     const create = formMode === 'create';
 
-    // Every stage keeps the whole form editable: the request details plus each
-    // step reached so far (edits save to the cloud automatically).
-    $('#summary').hidden = false;
-    $('#stageSummary').hidden = create;
-    $('#requestContent').hidden = false;
-    $('#ackContent').hidden = !reached('acknowledgement');
-    $('#approvalsSection').hidden = !reached('approval');
-    // Receipts: any time, except a new cash advance (documents come later).
+    // A stage shows only its own step. Edit (editAll) opens the whole form:
+    // the request details plus each step reached so far, saved automatically.
+    const full = create || editAll;
     const isCA = radioVal('txnType') === 'Cash Advance';
-    $('#receiptsCard').hidden = create && isCA;
+    const showAck = editAll ? reached('acknowledgement') : formMode === 'acknowledgement';
+    const showApprovals = editAll ? reached('approval') : formMode === 'approval';
+    $('#summary').hidden = !full;
+    $('#stageSummary').hidden = create;
+    $('#requestContent').hidden = !full;
+    $('#ackContent').hidden = !showAck;
+    $('#approvalsSection').hidden = !showApprovals;
+    // Receipts: request (not cash advance), Document Upload stage, or editing.
+    $('#receiptsCard').hidden = !((create && !isCA) || formMode === 'documents' || editAll);
 
-    renderSummary();
-    refreshCalendar();
+    if (full) { renderSummary(); refreshCalendar(); }
     if (create) renderWizProgress(wizQuestions().length);
     else {
       renderStageSummary();
-      if (reached('acknowledgement')) renderAckCards();
-      if (reached('approval')) updateApproverButtons();
+      if (showAck) renderAckCards();
+      if (showApprovals) updateApproverButtons();
     }
     renderApprovalDocs();
     renderStageActions();
@@ -429,7 +433,8 @@
        ${amt ? `<span class="stage-summary__amount">${amt}</span>` : ''}
        <div class="stage-summary__payee">${escapeHtml(f.payee || 'Untitled')}</div>
        <div class="stage-summary__meta">${escapeHtml(meta)}</div>
-       ${f.purpose ? `<div class="stage-summary__purpose">${escapeHtml(f.purpose)}</div>` : ''}`;
+       ${f.purpose ? `<div class="stage-summary__purpose">${escapeHtml(f.purpose)}</div>` : ''}
+       <button type="button" class="btn btn--sm stage-summary__edit" id="btnEditAll">${editAll ? 'Done editing' : 'Edit'}</button>`;
   }
 
   /* ---------- Inline calendar (activity date) ---------- */
@@ -655,6 +660,7 @@
     if (!rec) return;
     applyRecord(rec);
     state.editingId = id;
+    editAll = false;
     const st = rec.status || 'withdrawal';
     if (form.elements['status']) form.elements['status'].value = st;
     formMode = st;
@@ -1054,6 +1060,7 @@
     updateConditionals();
     computeExcess();
     clearTimeout(autoSaveTimer);
+    editAll = false;
     if (toastMsg) toast('New form');
   }
 
@@ -1865,6 +1872,14 @@
     $('#queueList').addEventListener('click', (e) => {
       const card = e.target.closest('[data-act]');
       if (card) openStage(card.dataset.id);
+    });
+
+    // Edit / Done editing: toggle the whole form for this step
+    $('#stageSummary').addEventListener('click', (e) => {
+      if (!e.target.closest('#btnEditAll')) return;
+      editAll = !editAll;
+      if (!editAll) saveDraft();
+      showDetails();
     });
 
     // history
