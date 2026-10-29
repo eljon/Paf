@@ -72,6 +72,7 @@
     { v: 23, notes: 'Cloud only: nothing is saved on the device any more (old on-device copies are cleared). A step only moves forward once Firestore confirms the save, otherwise you are told it was not saved. Signatures and photos on a form already in the cloud save to the cloud as soon as they are added.' },
     { v: 24, notes: 'Uploaded documents are visible at every step after upload (withdrawal, acknowledgement, approval, recording and done), not just during approval. Tap one to view it larger or download it.' },
     { v: 25, notes: 'Fast offering: the member receiving assistance now signs at acknowledgement for every transaction type (including reimbursements and cash advances), and the signature prints on the fast offering signature line.' },
+    { v: 26, notes: 'Every step after submission shows the whole form for editing: transaction type and category, details, fast offering, requestor, documents, and each earlier step (acknowledgement, approvals). Changes save to the cloud automatically.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -236,7 +237,11 @@
   let formMode = 'wizard';
   let wizIndex = 0;
   let advanceTimer;
-  const isStage = () => ['withdrawal', 'acknowledgement', 'documents', 'approval', 'recording', 'done'].includes(formMode);
+  const STAGES = ['withdrawal', 'acknowledgement', 'documents', 'approval', 'recording', 'done'];
+  const isStage = () => STAGES.includes(formMode);
+  // True once the open form has reached (or passed) the given stage.
+  const reached = st => STAGES.indexOf(formMode) >= STAGES.indexOf(st);
+  let editStage = null;   // stage to return to after changing a wizard answer
 
   /* Approver roster */
   const BISHOP = 'Eljon Serrano';
@@ -342,29 +347,34 @@
 
   // Show the details step (create request, or a workflow stage).
   function showDetails() {
-    if (formMode === 'wizard') formMode = 'create';
+    if (formMode === 'wizard') {
+      formMode = editStage || 'create';
+      if (editStage) saveDraft();                 // save the changed answer
+      editStage = null;
+    }
     $('#wizard').hidden = true;
     $('#detailsStep').hidden = false;
     clearInvalid();
     const create = formMode === 'create';
 
-    $('#summary').hidden = !create;
+    // Every stage keeps the whole form editable: the request details plus each
+    // step reached so far (edits save to the cloud automatically).
+    $('#summary').hidden = false;
     $('#stageSummary').hidden = create;
-    $('#requestContent').hidden = !create;
-    $('#ackContent').hidden = formMode !== 'acknowledgement';
-    $('#approvalsSection').hidden = formMode !== 'approval';
-    // Receipts: in the request for non-cash-advance, or in the Document Upload stage.
+    $('#requestContent').hidden = false;
+    $('#ackContent').hidden = !reached('acknowledgement');
+    $('#approvalsSection').hidden = !reached('approval');
+    // Receipts: any time, except a new cash advance (documents come later).
     const isCA = radioVal('txnType') === 'Cash Advance';
-    $('#receiptsCard').hidden = !((create && !isCA) || formMode === 'documents');
+    $('#receiptsCard').hidden = create && isCA;
 
-    if (create) {
-      renderWizProgress(wizQuestions().length);
-      renderSummary();
-      refreshCalendar();
-    } else {
+    renderSummary();
+    refreshCalendar();
+    if (create) renderWizProgress(wizQuestions().length);
+    else {
       renderStageSummary();
-      if (formMode === 'acknowledgement') renderAckCards();
-      if (formMode === 'approval') updateApproverButtons();
+      if (reached('acknowledgement')) renderAckCards();
+      if (reached('approval')) updateApproverButtons();
     }
     renderApprovalDocs();
     renderStageActions();
@@ -409,31 +419,17 @@
     }
   }
 
-  // Amount stays editable until the recipient signs the acknowledgement.
-  function amountEditable() {
-    return (formMode === 'withdrawal' || formMode === 'acknowledgement') && !ackSigned();
-  }
   function renderStageSummary() {
     const f = collect().fields;
-    const el = $('#stageSummary');
     const amt = f.amount ? '₱' + Number(f.amount).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '';
     const date = f.activityDate ? fmtLongDate(f.activityDate) : '';
     const meta = [f.txnType, f.category, date].filter(Boolean).join(' · ');
-    const amountHtml = amountEditable()
-      ? `<div class="stage-amount">
-           <label for="stageAmount">Amount</label>
-           <div class="money"><span>₱</span>
-             <input id="stageAmount" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${escapeHtml(f.amount || '')}">
-           </div>
-         </div>`
-      : (amt ? `<span class="stage-summary__amount">${amt}</span>` : '');
-    el.innerHTML =
+    $('#stageSummary').innerHTML =
       `<span class="stage-summary__status">${STATUS_LABEL[form.elements['status'].value] || ''}${f.txnNo ? ' · ' + escapeHtml(f.txnNo) : ''}</span>
-       ${amountEditable() ? '' : amountHtml}
+       ${amt ? `<span class="stage-summary__amount">${amt}</span>` : ''}
        <div class="stage-summary__payee">${escapeHtml(f.payee || 'Untitled')}</div>
        <div class="stage-summary__meta">${escapeHtml(meta)}</div>
-       ${f.purpose ? `<div class="stage-summary__purpose">${escapeHtml(f.purpose)}</div>` : ''}
-       ${amountEditable() ? amountHtml : ''}`;
+       ${f.purpose ? `<div class="stage-summary__purpose">${escapeHtml(f.purpose)}</div>` : ''}`;
   }
 
   /* ---------- Inline calendar (activity date) ---------- */
@@ -756,7 +752,7 @@
   function resumeStage() {
     const qs = wizQuestions();
     const firstUnanswered = qs.findIndex(q => !answered(q));
-    if (firstUnanswered === -1) { formMode = 'create'; showDetails(); }
+    if (firstUnanswered === -1) showDetails();       // back to the form (or its stage)
     else showWizardStep(firstUnanswered);
   }
 
@@ -1037,6 +1033,7 @@
   let autoSaveTimer;
   function saveDraft() {
     clearTimeout(autoSaveTimer);
+    if (isStage()) renderStageSummary();             // keep the header in step with edits
     if (!state.editingId || formMode === 'create' || formMode === 'wizard') return;
     const id = state.editingId;
     autoSaveTimer = setTimeout(() => {
@@ -1701,9 +1698,9 @@
       if (e.target.classList) e.target.classList.remove('is-invalid');
       if (e.target.name === 'txnType' || e.target.name === 'category') updateConditionals();
       if (e.target.name === 'amount' || e.target.name === 'caSpent') computeExcess();
-      if (e.target.name === 'payee') { if (formMode === 'approval') updateApproverButtons(); syncRequestorSame(); }
+      if (e.target.name === 'payee') { if (reached('approval')) updateApproverButtons(); syncRequestorSame(); }
       if (['payee', 'reimburseName', 'caReceiveName', 'caBishopName'].includes(e.target.name)) checkBishopRule();
-      if ((e.target.name === 'reimburseName' || e.target.name === 'caReceiveName') && formMode === 'approval') updateApproverButtons();
+      if ((e.target.name === 'reimburseName' || e.target.name === 'caReceiveName') && reached('approval')) updateApproverButtons();
       saveDraft();
     });
     form.addEventListener('change', (e) => {
@@ -1735,7 +1732,7 @@
       const chip = e.target.closest('.sum-chip');
       if (chip) {
         const i = wizQuestions().indexOf(chip.dataset.q);
-        if (i >= 0) showWizardStep(i);
+        if (i >= 0) { if (isStage()) editStage = formMode; showWizardStep(i); }
       }
     });
     // Submit (create) + stage transition buttons
@@ -1868,16 +1865,6 @@
     $('#queueList').addEventListener('click', (e) => {
       const card = e.target.closest('[data-act]');
       if (card) openStage(card.dataset.id);
-    });
-
-    // editable amount in a stage (before acknowledgement is signed)
-    $('#stageSummary').addEventListener('input', (e) => {
-      if (e.target.id === 'stageAmount') form.elements['amount'].value = e.target.value;
-    });
-    $('#stageSummary').addEventListener('change', (e) => {
-      if (e.target.id === 'stageAmount' && state.editingId) {
-        persist(form.elements['status'].value || undefined).then(r => { if (r) toast('Amount updated'); });
-      }
     });
 
     // history
