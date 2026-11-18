@@ -47,6 +47,12 @@ if (configured) {
         return snap.docs.map(d => d.data());
       },
 
+      // Fetch one transaction by id (null if it doesn't exist).
+      async get(id) {
+        const snap = await fs.getDoc(fs.doc(col, id));
+        return snap.exists() ? snap.data() : null;
+      },
+
       // Save/update a record. The whole record — including receipt/document
       // photos as inline data URIs — is written to one Firestore document.
       // (Firestore caps a document at ~1 MB, so photos are compressed small.)

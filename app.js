@@ -74,6 +74,7 @@
     { v: 25, notes: 'Fast offering: the member receiving assistance now signs at acknowledgement for every transaction type (including reimbursements and cash advances), and the signature prints on the fast offering signature line.' },
     { v: 26, notes: 'Every step after submission shows the whole form for editing: transaction type and category, details, fast offering, requestor, documents, and each earlier step (acknowledgement, approvals). Changes save to the cloud automatically.' },
     { v: 27, notes: 'Each step shows only its own section again. An Edit button at the top opens the whole form (type, category, details, fast offering, requestor, documents and earlier steps) for changes; Done editing returns to the step. Changes save to the cloud automatically.' },
+    { v: 28, notes: 'Every open transaction has its own address (#id=…), so reloading or sharing it reopens the same form instead of the start page. Links load that one transaction directly instead of waiting for every form to download, so they no longer show "not found" on slow connections.' },
   ];
   const APP_VERSION = CHANGELOG[CHANGELOG.length - 1].v;
 
@@ -665,6 +666,7 @@
     if (form.elements['status']) form.elements['status'].value = st;
     formMode = st;
     switchTab('form');
+    setRecordURL(id);
   }
 
   function updateApproverButtons() {
@@ -768,6 +770,8 @@
   }
 
   function newForm() {
+    pendingShareId = null;
+    setRecordURL(null);
     resetForm(false);
     formMode = 'wizard';
     renderSummary();
@@ -1229,6 +1233,7 @@
   let currentTab = 'form';
   function switchTab(tab) {
     currentTab = tab;
+    if (tab !== 'form') { pendingShareId = null; setRecordURL(null); }
     $('#viewForm').hidden = tab !== 'form';
     $('#viewQueue').hidden = tab !== 'queue';
     $('#viewHistory').hidden = tab !== 'history';
@@ -1602,20 +1607,55 @@
     }
   }
 
+  // Each open transaction has its own address (#id=...), so a reload or a
+  // copied link reopens it. Lists and new forms use the plain address.
+  function setRecordURL(id) {
+    const url = location.pathname + location.search + (id ? '#id=' + id : '');
+    if (location.pathname + location.search + location.hash !== url) history.replaceState(null, '', url);
+  }
+
+  // Resolves once Firebase is ready; rejects if it can't load.
+  function waitForCloud() {
+    if (cloudReady()) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      window.addEventListener('cloud-ready', resolve, { once: true });
+      window.addEventListener('cloud-failed', () => reject({ code: 'unavailable' }), { once: true });
+    });
+  }
+
+  // Load one transaction straight from Firestore (much faster than waiting
+  // for the whole list, which carries every form's photos).
+  async function fetchRecord(id) {
+    try {
+      await waitForCloud();
+      const rec = await window.Cloud.get(id);
+      if (pendingShareId !== id) return;              // opened meanwhile, or user moved on
+      if (!rec) {
+        pendingShareId = null;
+        setRecordURL(null);
+        toast('Transaction not found — it may have been deleted.');
+        return;
+      }
+      setRecords([rec, ...loadRecords().filter(r => r.id !== id)]);
+      pendingShareId = null;
+      openStage(id);
+    } catch (err) {
+      console.error('Load failed', err);
+      if (pendingShareId === id)                      // the list may still bring it in
+        toast('Still loading… if this takes long, check your connection and reload.');
+    }
+  }
+
   // Load a shared transaction from the URL hash. Returns true if handled.
   function importFromHash() {
     // Share-by-id: open the saved (cloud) transaction at its current stage.
     const mid = (location.hash || '').match(/[#&]id=([A-Za-z0-9_-]+)/);
     if (mid) {
       const id = mid[1];
-      history.replaceState(null, '', location.pathname + location.search);
-      const rec = loadRecords().find(r => r.id === id);
-      if (rec) { openStage(id); toast('Shared transaction loaded'); }
-      else {
-        pendingShareId = id;                          // wait for cloud sync
-        toast('Loading shared transaction…');
-        setTimeout(() => { if (pendingShareId === id) { pendingShareId = null; toast('Shared transaction not found'); } }, 9000);
-      }
+      if (loadRecords().find(r => r.id === id)) { openStage(id); return true; }
+      pendingShareId = id;
+      toast('Loading transaction…');
+      fetchRecord(id);
       return true;
     }
     // Self-contained snapshot (#t=...) — used offline / for unsaved forms.
@@ -1913,6 +1953,11 @@
     $('#historyVersion').addEventListener('click', () => openVersionModal(APP_VERSION));
     $$('#versionModal [data-close]').forEach(el => el.addEventListener('click', closeVersionModal));
     window.addEventListener('hashchange', handleVersionRoute);
+    // A different transaction link pasted into an open tab.
+    window.addEventListener('hashchange', () => {
+      const m = location.hash.match(/[#&]id=([A-Za-z0-9_-]+)/);
+      if (m && m[1] !== state.editingId) importFromHash();
+    });
 
     // esc closes modal
     document.addEventListener('keydown', (e) => {
@@ -1937,7 +1982,7 @@
         // A shared #id= link may have been waiting for the record to sync in.
         if (pendingShareId) {
           const rec = loadRecords().find(r => r.id === pendingShareId);
-          if (rec) { const id = pendingShareId; pendingShareId = null; openStage(id); toast('Shared transaction loaded'); return; }
+          if (rec) { const id = pendingShareId; pendingShareId = null; openStage(id); return; }
         }
         refreshCurrentView();                          // live-update queue/history
       });
